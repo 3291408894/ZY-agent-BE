@@ -1,0 +1,33 @@
+"""
+文件管理相关 Pydantic Schema (PBI_05)
+"""
+
+from datetime import datetime
+
+from pydantic import BaseModel
+
+
+class FileUploadResp(BaseModel):
+    file_id: str
+    filename: str
+    file_size: int
+    file_type: str
+    parse_status: str
+    created_at: datetime
+
+
+class FileStatusResp(BaseModel):
+    file_id: str
+    parse_status: str
+    parsed_content: str | None = None
+    summary: str | None = None
+    knowledge_points: list[str] = []
+
+
+class FileItem(BaseModel):
+    id: str
+    filename: str
+    file_type: str
+    file_size: int
+    parse_status: str
+    created_at: datetime
