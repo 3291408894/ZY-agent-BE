@@ -1,12 +1,19 @@
 """
 测试配置 & 全局 Fixtures
+
+测试环境使用 SQLite 内存数据库，无需 MySQL。
 """
 
 import asyncio
+import os
 from typing import AsyncGenerator
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+
+# 测试环境强制使用 SQLite，避免依赖外部 MySQL
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.database import Base

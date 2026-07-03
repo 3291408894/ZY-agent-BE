@@ -4,11 +4,12 @@ API v1 路由聚合 — 按文档规范组织所有子路由
 
 from fastapi import APIRouter
 
+from app.api.v1.auth import router as auth_router
+from app.api.v1.users import router as users_router
+
 # ============================================================
-# 导入各模块路由（初期先占位导入，模块开发时逐个取消注释）
+# 第二阶段模块路由（后续取消注释即可激活）
 # ============================================================
-# from app.api.v1.auth import router as auth_router
-# from app.api.v1.users import router as users_router
 # from app.api.v1.agent import router as agent_router
 # from app.api.v1.summary import router as summary_router
 # from app.api.v1.exercises import router as exercises_router
@@ -17,11 +18,11 @@ from fastapi import APIRouter
 
 api_router = APIRouter(prefix="/api/v1")
 
-# --- 认证模块 (PBI_01) ---
-# api_router.include_router(auth_router, prefix="/auth", tags=["认证"])
+# --- 认证模块 (PBI_01) ✅ 已激活 ---
+api_router.include_router(auth_router, prefix="/auth", tags=["认证"])
 
-# --- 用户模块 (PBI_01) ---
-# api_router.include_router(users_router, prefix="/users", tags=["用户"])
+# --- 用户模块 (PBI_01) ✅ 已激活 ---
+api_router.include_router(users_router, prefix="/users", tags=["用户"])
 
 # --- AI Agent 模块 (PBI_04, PBI_12) ---
 # api_router.include_router(agent_router, prefix="/agent", tags=["AI Agent"])

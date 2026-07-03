@@ -187,3 +187,74 @@ CREATE TABLE IF NOT EXISTS `knowledge_graphs` (
 -- ============================================================
 -- 执行完毕：共 9 张表
 -- ============================================================
+
+
+-- ============================================================
+-- 测试种子数据（开发/测试用）
+-- 密码均为: Test123456!
+-- ============================================================
+
+-- 测试用户 1：初中生小明
+INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `nickname`, `grade`, `subjects`, `textbook_version`, `avatar_url`, `is_active`)
+VALUES (
+    'a0000000-0000-0000-0000-000000000001',
+    'xiaoming@zhiyi.com',
+    '13800000001',
+    '$2b$12$RJkqRd6FuFzEd/FvjEoit.QZJAxc/XfwSnQzeipvvE.1ZiQNCFPtu',
+    '小明',
+    '七年级',
+    '["语文", "数学", "英语"]',
+    '部编版',
+    NULL,
+    1
+);
+
+INSERT IGNORE INTO `learning_profiles` (`id`, `user_id`, `total_study_time`, `total_exercises`, `correct_rate`, `weak_points`)
+VALUES (
+    'b0000000-0000-0000-0000-000000000001',
+    'a0000000-0000-0000-0000-000000000001',
+    36000,
+    128,
+    0.85,
+    '["文言文阅读", "二次函数", "英语完形填空"]'
+);
+
+-- 测试用户 2：高中生小红
+INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `nickname`, `grade`, `subjects`, `textbook_version`, `avatar_url`, `is_active`)
+VALUES (
+    'a0000000-0000-0000-0000-000000000002',
+    'xiaohong@zhiyi.com',
+    '13800000002',
+    '$2b$12$RJkqRd6FuFzEd/FvjEoit.QZJAxc/XfwSnQzeipvvE.1ZiQNCFPtu',
+    '小红',
+    '高一',
+    '["语文", "英语", "物理", "化学"]',
+    '人教版',
+    NULL,
+    1
+);
+
+INSERT IGNORE INTO `learning_profiles` (`id`, `user_id`, `total_study_time`, `total_exercises`, `correct_rate`, `weak_points`)
+VALUES (
+    'b0000000-0000-0000-0000-000000000002',
+    'a0000000-0000-0000-0000-000000000002',
+    72000,
+    256,
+    0.78,
+    '["文言文翻译", "力学综合", "有机化学"]'
+);
+
+-- 测试用户 3：已禁用的账号（测试登录拒绝）
+INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `nickname`, `grade`, `subjects`, `textbook_version`, `avatar_url`, `is_active`)
+VALUES (
+    'a0000000-0000-0000-0000-000000000003',
+    'disabled@zhiyi.com',
+    NULL,
+    '$2b$12$RJkqRd6FuFzEd/FvjEoit.QZJAxc/XfwSnQzeipvvE.1ZiQNCFPtu',
+    '已禁用',
+    '九年级',
+    '["数学"]',
+    NULL,
+    NULL,
+    0
+);

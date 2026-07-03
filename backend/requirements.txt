@@ -7,12 +7,13 @@ uvicorn[standard]>=0.29
 
 # Database
 sqlalchemy[asyncio]>=2.0,<3.0
-asyncmy>=0.2
+aiomysql>=0.3
 alembic>=1.13
 
 # Validation
 pydantic>=2.6
 pydantic-settings>=2.2
+email-validator>=2.1
 
 # Auth
 python-jose[cryptography]>=3.3
