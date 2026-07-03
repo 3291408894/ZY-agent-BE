@@ -10,7 +10,7 @@
 ## 一、项目位置
 
 ```
-D:\VScode\zy\backend\
+D:\VScode\zy-be\backend\
 ```
 
 共创建 **15 个目录、57 个文件**。
@@ -25,7 +25,8 @@ backend/
 ├── pyproject.toml                        # 项目元数据 + ruff/black/pytest 配置
 ├── requirements.txt                      # pip 依赖清单
 ├── Dockerfile                            # Docker 镜像
-├── docker-compose.yml                    # PostgreSQL + Redis + Backend 编排
+├── docker-compose.yml                    # MySQL + Redis + Backend 编排
+├── zy.sql                                 # MySQL 建表脚本（9 张表）
 ├── alembic.ini                           # Alembic 数据库迁移配置
 │
 ├── alembic/
@@ -58,7 +59,7 @@ backend/
 │   │       ├── files.py                  # 占位 — PBI_05 Sprint 2
 │   │       └── knowledge.py              # 占位 — PBI_11 Sprint 2
 │   │
-│   ├── models/                           # ═══ 数据模型层（7 张表） ═══
+│   ├── models/                           # ═══ 数据模型层（9 张表） ═══
 │   │   ├── __init__.py                   # 导入所有模型供 Alembic 自动发现
 │   │   ├── user.py                       # users + learning_profiles
 │   │   ├── chat.py                       # chat_sessions + chat_messages
@@ -120,11 +121,12 @@ backend/
 |------|------|------|
 | Web 框架 | FastAPI 0.110+ | 异步支持，自动 OpenAPI |
 | 语言 | Python 3.12+ | 完整类型注解 |
-| ORM | SQLAlchemy 2.0 (async) | `asyncpg` 驱动 |
+| ORM | SQLAlchemy 2.0 (async) | `asyncmy` 驱动 |
 | 迁移 | Alembic | 已配置异步引擎 |
 | 校验 | Pydantic v2 | 与 FastAPI 深度集成 |
 | 认证 | JWT (python-jose) + bcrypt | `passlib` 哈希 |
 | 缓存 | Redis (aioredis) | 连接池单例 |
+| 数据库 | MySQL 8.0 | InnoDB, utf8mb4, JSON 原生支持 |
 | AI 流式 | SSE + httpx | `sse-starlette` 备用 |
 | LLM | OpenAI 兼容 API | 封装重试 + 流式 |
 | 日志 | loguru | 请求中间件自动记录 |
@@ -220,7 +222,7 @@ data: {"type":"error","message":"错误信息"}
 
 ## 五、数据库表
 
-与文档 §4.1 完全对应，共 8 张表：
+与文档 §4.1 完全对应，共 9 张表（建表脚本：`zy.sql`）：
 
 | 表名 | 模型文件 | 对应 PBI |
 |------|----------|----------|
@@ -241,12 +243,12 @@ data: {"type":"error","message":"错误信息"}
 ### 前置条件
 
 - Python 3.12+
-- Docker Desktop（或本地安装 PostgreSQL 16 + Redis 7）
+- Docker Desktop（或本地安装 MySQL 8.0 + Redis 7）
 
 ### 步骤
 
 ```bash
-cd D:\VScode\zy\backend
+cd D:\VScode\zy-be\backend
 
 # 1. 复制并编辑环境变量（务必修改 SECRET_KEY 和 LLM_API_KEY）
 cp .env.example .env
@@ -259,11 +261,12 @@ venv\Scripts\activate        # Windows
 # 3. 安装依赖
 pip install -r requirements.txt
 
-# 4. 启动 PostgreSQL + Redis（Docker 方式）
-docker compose up -d postgres redis
+# 4. 启动 MySQL + Redis（Docker 方式）
+docker compose up -d mysql redis
 
-# 5. 执行数据库迁移
+# 5. 执行数据库迁移（或直接导入 zy.sql）
 alembic upgrade head
+# 备选：mysql -u root -p zhiyi < ../zy.sql
 
 # 6. 启动开发服务器
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -282,7 +285,7 @@ curl http://localhost:8000/api/v1/health
 | 变量 | 说明 | 必填 |
 |------|------|------|
 | `SECRET_KEY` | JWT 签名密钥，至少 32 字符 | ✅ |
-| `DATABASE_URL` | PostgreSQL 连接串 | ✅ |
+| `DATABASE_URL` | MySQL 连接串 | ✅ |
 | `REDIS_URL` | Redis 连接串 | ✅ |
 | `LLM_API_KEY` | LLM API 密钥 | AI 功能需要 |
 | `LLM_API_BASE_URL` | LLM API 地址 | 默认 OpenAI |
