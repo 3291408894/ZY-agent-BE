@@ -215,20 +215,30 @@ class TestSummaryService:
         svc = SummaryService(mock_db)
         assert svc.db is mock_db
 
-    def test_list_summaries_empty(self, mock_db):
+    @pytest.mark.asyncio
+    async def test_list_summaries_empty(self, mock_db):
         """空列表应返回正确的分页结构"""
         from app.services.summary_service import SummaryService
-        from unittest.mock import AsyncMock
+        from unittest.mock import AsyncMock, MagicMock
 
-        # Mock: 总数查询返回 0
-        mock_db.execute.return_value.scalar.return_value = 0
-        # Mock: 分页查询返回空列表
-        mock_db.execute.return_value.scalars.return_value.all.return_value = []
+        # 构造两次 execute 调用的不同返回值
+        count_result = MagicMock()
+        count_result.scalar.return_value = 0
+
+        list_result = MagicMock()
+        # scalars() 是同步方法，返回一个 MagicMock；.all() 也是同步
+        list_result.scalars.return_value.all.return_value = []
+
+        mock_db.execute = AsyncMock(side_effect=[count_result, list_result])
 
         svc = SummaryService(mock_db)
-        # 需要分开 mock
-        # 第一次 execute: count query
-        # 第二次 execute: select query
+        result = await svc.list_summaries(user_id="user-1", page=1, page_size=20)
+
+        assert result.items == []
+        assert result.total == 0
+        assert result.page == 1
+        assert result.page_size == 20
+        assert result.total_pages == 1
 
     @pytest.mark.asyncio
     async def test_delete_summary_not_found(self, mock_db):

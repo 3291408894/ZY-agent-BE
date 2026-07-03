@@ -54,7 +54,6 @@ class LLMClient:
                     logger.warning(f"LLM 调用失败 (attempt {attempt + 1}/{self.max_retries}): {e}")
                     if attempt == self.max_retries - 1:
                         raise
-        raise RuntimeError("LLM 调用失败：所有重试已耗尽")
 
     async def chat_stream(
         self,

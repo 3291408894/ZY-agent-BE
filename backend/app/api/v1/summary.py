@@ -8,10 +8,10 @@ from app.api.deps import get_current_user, get_db
 from app.models.user import User
 from app.schemas.summary import (
     GenerateSummaryRequest,
-    SummaryListQuery,
     SummaryListResponse,
     SummaryDetailResponse,
     SummaryMode,
+    SummarySourceType,
 )
 from app.services.summary_service import SummaryService
 
@@ -37,6 +37,12 @@ async def generate_summary(
     - done:            总结完成（含 summary_id）
     - error:           出错信息
     """
+    # 校验 source_type 与必填字段的一致性
+    if req.source_type == SummarySourceType.TEXT and not req.content.strip():
+        raise HTTPException(status_code=400, detail="source_type=text 时 content 不能为空")
+    if req.source_type == SummarySourceType.FILE and not req.file_id:
+        raise HTTPException(status_code=400, detail="source_type=file 时 file_id 不能为空")
+
     service = SummaryService(db)
 
     async def event_stream():

@@ -90,7 +90,7 @@ class SummaryService:
             created_at=datetime.now(timezone.utc),
         )
         self.db.add(summary)
-        await self.db.commit()
+        await self.db.flush()  # flush 产生 ID，由 deps.get_db 统一 commit
 
         logger.info(f"总结已保存 | summary_id={summary.id} | user={user_id} | mode={mode.value} | len={len(full_text)}")
 
@@ -223,7 +223,6 @@ class SummaryService:
             Summary.user_id == user_id,
         )
         result = await self.db.execute(stmt)
-        await self.db.commit()
         deleted = result.rowcount > 0
         if deleted:
             logger.info(f"总结已删除 | summary_id={summary_id} | user={user_id}")
