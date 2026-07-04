@@ -4,7 +4,11 @@ API v1 路由聚合 — 按文档规范组织所有子路由
 
 from fastapi import APIRouter
 
+from app.api.v1.auth import router as auth_router
+from app.api.v1.users import router as users_router
+
 # ============================================================
+<<<<<<< HEAD
 # Phase 1 路由 (Sprint 1) — AI Agent 模块
 # ============================================================
 from app.api.v1.agent import router as agent_router
@@ -14,17 +18,31 @@ from app.api.v1.agent import router as agent_router
 # ============================================================
 # from app.api.v1.auth import router as auth_router
 # from app.api.v1.users import router as users_router
+=======
+# 第二阶段模块路由（后续取消注释即可激活）
+# ============================================================
+# from app.api.v1.agent import router as agent_router
+# from app.api.v1.summary import router as summary_router
+>>>>>>> model1
 # from app.api.v1.exercises import router as exercises_router
 # from app.api.v1.files import router as files_router
 # from app.api.v1.knowledge import router as knowledge_router
 
 api_router = APIRouter(prefix="/api/v1")
 
+<<<<<<< HEAD
 # --- 认证模块 (PBI_01) — Sprint 1 前期 ---
 # api_router.include_router(auth_router, prefix="/auth", tags=["认证"])
 
 # --- 用户模块 (PBI_01) — Sprint 1 前期 ---
 # api_router.include_router(users_router, prefix="/users", tags=["用户"])
+=======
+# --- 认证模块 (PBI_01) ✅ 已激活 ---
+api_router.include_router(auth_router, prefix="/auth", tags=["认证"])
+
+# --- 用户模块 (PBI_01) ✅ 已激活 ---
+api_router.include_router(users_router, prefix="/users", tags=["用户"])
+>>>>>>> model1
 
 # --- AI Agent 模块 (PBI_04, PBI_12) ✅ 已激活 ---
 api_router.include_router(agent_router, prefix="/agent", tags=["AI Agent"])
