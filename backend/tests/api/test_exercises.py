@@ -215,8 +215,8 @@ async def test_generate_exercises_llm_error(
             headers=auth_headers,
         )
         assert response.status_code == 500
-        detail = response.json()["detail"]
-        assert detail["code"] == 50002
+        data = response.json()
+        assert data["code"] == 50002  # LLM_SERVICE_ERROR
 
 
 # ── Grade API (POST /exercises/grade) ───────────────────────────
@@ -541,7 +541,7 @@ async def test_delete_batch_not_found(
 async def test_generate_exercises_validation_error(
     client: AsyncClient, auth_headers: dict
 ):
-    """Count exceeds max -> 422"""
+    """Count exceeds max -> 400 with PARAM_INVALID"""
     response = await client.post(
         "/api/v1/exercises/generate",
         json={
@@ -552,7 +552,9 @@ async def test_generate_exercises_validation_error(
         },
         headers=auth_headers,
     )
-    assert response.status_code == 422
+    assert response.status_code == 400
+    data = response.json()
+    assert data["code"] == 40001  # PARAM_INVALID
 
 
 # ── Helpers ─────────────────────────────────────────────────────
