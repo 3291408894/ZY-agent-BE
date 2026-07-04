@@ -266,19 +266,8 @@ class AgentOrchestrator:
             # 完成事件
             yield {
                 "type": "done",
-<<<<<<< HEAD
                 "session_id": session_id,
                 "usage": {"tokens": len(full_response)},
-=======
-                "usage": {
-                    "total_chars": len(full_response),
-                    "thought_steps": len(thought_chain),
-                    "tool_calls": len(tool_calls_record),
-                },
-                "thought_chain": thought_chain,
-                "tool_calls": tool_calls_record,
-                "full_response": full_response,
->>>>>>> main
             }
 
         except Exception as e:

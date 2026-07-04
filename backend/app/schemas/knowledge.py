@@ -93,7 +93,6 @@ class KnowledgeGraphItem(BaseModel):
     created_at: datetime
 
 
-<<<<<<< HEAD
 class RelatedNode(BaseModel):
     id: str
     label: str
@@ -107,62 +106,3 @@ class NodeDetailResp(BaseModel):
     examples: list[str] = []
     common_mistakes: list[str] = []
     related_nodes: list[RelatedNode] = []
-=======
-class KnowledgeGraphListResponse(BaseModel):
-    """图谱分页列表响应"""
-    items: list[KnowledgeGraphItem]
-    total: int
-    page: int
-    page_size: int
-    total_pages: int
-
-
-# ═══════════════════════════════════════════════════════════
-# 响应模型 — 节点详情
-# ═══════════════════════════════════════════════════════════
-
-class ExampleQuestion(BaseModel):
-    """典型例题"""
-    question: str = Field(..., description="题目内容")
-    answer: str = Field(..., description="参考答案")
-
-
-class CommonMistake(BaseModel):
-    """常见易错点"""
-    mistake: str = Field(..., description="常见错误描述")
-    correction: str = Field(..., description="纠正建议")
-
-
-class NodeDetailResponse(BaseModel):
-    """节点详情响应"""
-    node_id: str = Field(..., description="节点 ID")
-    label: str = Field(..., description="节点标签")
-    node_type: str = Field(..., description="节点类型")
-    graph_id: str = Field(..., description="所属图谱 ID")
-    graph_title: str = Field(..., description="所属图谱标题")
-    summary: str = Field(default="", description="知识点概述")
-    key_points: list[str] = Field(default_factory=list, description="核心要点")
-    example_questions: list[ExampleQuestion] = Field(default_factory=list, description="典型例题")
-    common_mistakes: list[CommonMistake] = Field(default_factory=list, description="常见易错点")
-    related_knowledge: list[str] = Field(default_factory=list, description="关联知识点")
-
-
-# ═══════════════════════════════════════════════════════════
-# 响应模型 — 导出
-# ═══════════════════════════════════════════════════════════
-
-class ExportFormat(str, Enum):
-    """导出格式"""
-    PNG = "png"
-    SVG = "svg"
-    PDF = "pdf"
-
-
-class ExportRequest(BaseModel):
-    """导出请求"""
-    format: ExportFormat = Field(default=ExportFormat.PNG, description="导出格式")
-    width: int = Field(default=1200, ge=400, le=4000, description="导出宽度")
-    height: int = Field(default=900, ge=300, le=3000, description="导出高度")
-    background: str = Field(default="#ffffff", description="背景色")
-    include_title: bool = Field(default=True, description="是否包含标题")
->>>>>>> main

@@ -4,11 +4,7 @@
 
 from datetime import datetime
 
-<<<<<<< HEAD
 from pydantic import BaseModel, Field, model_validator
-=======
-from pydantic import BaseModel, EmailStr, Field, model_validator
->>>>>>> main
 
 
 # ============================================================
@@ -19,20 +15,12 @@ class RegisterReq(BaseModel):
     phone: str | None = None
     password: str = Field(..., min_length=8, max_length=64, description="密码，8-64 位")
     grade: str = Field(..., description="年级，如'七年级'")
-<<<<<<< HEAD
     subjects: list[str] = Field(default_factory=list, description="学科偏好，至少1个")
-=======
-    subjects: list[str] = Field(default_factory=list, description="学科偏好列表")
->>>>>>> main
 
     @model_validator(mode="after")
     def check_email_or_phone(self):
         if not self.email and not self.phone:
-<<<<<<< HEAD
             raise ValueError("邮箱和手机号至少需要提供一个")
-=======
-            raise ValueError("邮箱和手机号至少填写一项")
->>>>>>> main
         return self
 
 

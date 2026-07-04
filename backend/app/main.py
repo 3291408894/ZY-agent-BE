@@ -7,15 +7,10 @@
 
 from contextlib import asynccontextmanager
 
-<<<<<<< HEAD
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-=======
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
->>>>>>> main
 
 from app.api.v1.router import api_router
 from app.core.config import settings

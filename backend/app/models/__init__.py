@@ -16,12 +16,8 @@ __all__ = [
     "Base",
     "User",
     "LearningProfile",
-<<<<<<< HEAD
     "RefreshToken",
     "PasswordResetToken",
-=======
-    "Summary",
->>>>>>> main
     "ChatSession",
     "ChatMessage",
     "UploadedFile",

@@ -9,18 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-<<<<<<< HEAD
 from app.core.security import create_access_token, hash_password, verify_password
-=======
-from app.core.redis import get_redis
-from app.core.security import (
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-    hash_password,
-    verify_password,
-)
->>>>>>> main
 from app.models.user import LearningProfile, User
 from app.schemas.user import (
     ChangePasswordReq,
@@ -38,7 +27,6 @@ class UserService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-<<<<<<< HEAD
     async def get_by_email_or_phone(
         self, email: str | None, phone: str | None
     ) -> User | None:
@@ -69,24 +57,6 @@ class UserService:
 
     async def register(self, req: RegisterReq) -> User:
         """注册新用户，自动创建学习档案"""
-=======
-    # ================================================================
-    # 注册
-    # ================================================================
-
-    async def register(self, req: RegisterReq) -> User:
-        """注册新用户，自动创建学习档案。若邮箱/手机号已存在则返回 None"""
-        # 校验唯一性
-        if req.email:
-            exists = await self._check_exists(email=req.email)
-            if exists:
-                return None
-        if req.phone:
-            exists = await self._check_exists(phone=req.phone)
-            if exists:
-                return None
-
->>>>>>> main
         user = User(
             email=req.email,
             phone=req.phone,
@@ -319,18 +289,8 @@ class UserService:
     # ================================================================
 
     async def get_dashboard(self, user_id: str) -> dict:
-<<<<<<< HEAD
         """聚合仪表盘数据"""
         profile = await self.db.get(LearningProfile, user_id)
-=======
-        """聚合仪表盘数据（学习统计 + 近期记录 + 推荐）"""
-        # 查询学习档案（注意：user_id 不是 LearningProfile 的主键，需要用 where）
-        stmt = select(LearningProfile).where(LearningProfile.user_id == user_id)
-        result = await self.db.execute(stmt)
-        profile = result.scalar_one_or_none()
-
-        # TODO: 后续迭代中从 summaries / exercises / exercise_attempts 表聚合真实数据
->>>>>>> main
         return {
             "total_study_time": profile.total_study_time if profile else 0,
             "total_exercises": profile.total_exercises if profile else 0,
