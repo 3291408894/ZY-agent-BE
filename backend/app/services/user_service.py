@@ -5,6 +5,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.user import LearningProfile, User
 from app.schemas.user import LoginReq, RegisterReq, UpdateProfileReq
@@ -20,9 +21,21 @@ class UserService:
         self, email: str | None, phone: str | None
     ) -> User | None:
         """按邮箱或手机号查找用户"""
-        stmt = select(User).where(
-            (User.email == email) | (User.phone == phone)
-        )
+        if not email and not phone:
+            return None
+        conditions = []
+        if email:
+            conditions.append(User.email == email)
+        if phone:
+            conditions.append(User.phone == phone)
+        from sqlalchemy import or_
+        stmt = select(User).where(or_(*conditions))
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_by_email(self, email: str) -> User | None:
+        """按邮箱查找用户"""
+        stmt = select(User).where(User.email == email)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -68,7 +81,7 @@ class UserService:
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": 86400,
+            "expires_in": settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             "user": {
                 "id": user.id,
                 "email": user.email,
@@ -100,7 +113,6 @@ class UserService:
 
     async def get_dashboard(self, user_id: str) -> dict:
         """聚合仪表盘数据"""
-        # TODO: 从各表聚合真实数据
         profile = await self.db.get(LearningProfile, user_id)
         return {
             "total_study_time": profile.total_study_time if profile else 0,

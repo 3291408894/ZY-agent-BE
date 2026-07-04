@@ -2,14 +2,14 @@
 文件管理路由 (PBI_05) — 上传、解析、状态查询
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.models.user import User
-from app.schemas.common import ErrorCode, make_response
-from app.schemas.file import FileItem, FileStatusResp, FileUploadResp
+from app.schemas.common import ErrorCode, make_paginated_response, make_response
+from app.schemas.file import FileItem, FileUploadResp
 from app.services.file_service import FileService
 
 router = APIRouter()
@@ -18,6 +18,7 @@ router = APIRouter()
 @router.post("/upload", summary="上传文件")
 async def upload_file(
     file: UploadFile,
+    auto_parse: bool = Form(default=True),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -31,6 +32,7 @@ async def upload_file(
             detail={
                 "code": ErrorCode.FILE_SIZE_EXCEEDED,
                 "message": f"文件大小超过限制 ({settings.MAX_FILE_SIZE_MB}MB)",
+                "detail": None,
             },
         )
 
@@ -40,25 +42,29 @@ async def upload_file(
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": ErrorCode.FILE_FORMAT_UNSUPPORTED, "message": str(e)},
+            detail={"code": ErrorCode.FILE_FORMAT_UNSUPPORTED, "message": str(e), "detail": None},
         )
 
     await db.commit()
 
-    # 异步触发解析（简化版：同步解析；生产环境用 Celery）
-    try:
-        await service.parse_file(record.id)
-        await db.commit()
-    except Exception:
-        pass  # 解析失败不影响上传成功
+    # 自动解析
+    if auto_parse:
+        try:
+            await service.parse_file(record.id)
+            await db.commit()
+        except Exception:
+            pass  # 解析失败不影响上传成功
 
     return make_response(
         data=FileUploadResp(
-            file_id=record.id,
+            id=record.id,
+            user_id=record.user_id,
             filename=record.filename,
-            file_size=record.file_size,
             file_type=record.file_type,
+            file_size=record.file_size,
+            storage_path=record.storage_path,
             parse_status=record.parse_status,
+            parsed_content=record.parsed_content,
             created_at=record.created_at,
         ).model_dump(),
         message="上传成功",
@@ -67,14 +73,17 @@ async def upload_file(
 
 @router.get("", summary="文件列表")
 async def list_files(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    file_type: str | None = Query(default=None, description="筛选文件类型"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取当前用户上传的所有文件"""
+    """获取当前用户上传的所有文件（分页）"""
     service = FileService(db)
-    files = await service.list_files(current_user.id)
-    return make_response(
-        data=[
+    files, total = await service.list_files(current_user.id, page, page_size, file_type)
+    return make_paginated_response(
+        items=[
             FileItem(
                 id=f.id,
                 filename=f.filename,
@@ -84,7 +93,10 @@ async def list_files(
                 created_at=f.created_at,
             ).model_dump()
             for f in files
-        ]
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -100,14 +112,18 @@ async def get_file_status(
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "文件不存在"},
+            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "文件不存在", "detail": None},
         )
     return make_response(
-        data=FileStatusResp(
-            file_id=record.id,
-            parse_status=record.parse_status,
-            parsed_content=record.parsed_content,
-        ).model_dump()
+        data={
+            "id": record.id,
+            "filename": record.filename,
+            "file_type": record.file_type,
+            "file_size": record.file_size,
+            "parse_status": record.parse_status,
+            "parsed_content": record.parsed_content,
+            "created_at": record.created_at.isoformat() if record.created_at else None,
+        }
     )
 
 
@@ -117,17 +133,33 @@ async def reparse_file(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """重新触发文件解析"""
+    """重新触发文件解析，返回完整文件对象"""
     service = FileService(db)
     try:
         await service.reparse(file_id, current_user.id)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "文件不存在"},
+            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "文件不存在", "detail": None},
         )
     await db.commit()
-    return make_response(message="重新解析已触发")
+
+    # 读取更新后的记录
+    record = await service.get_file(file_id, current_user.id)
+    return make_response(
+        data=FileUploadResp(
+            id=record.id,
+            user_id=record.user_id,
+            filename=record.filename,
+            file_type=record.file_type,
+            file_size=record.file_size,
+            storage_path=record.storage_path,
+            parse_status=record.parse_status,
+            parsed_content=record.parsed_content,
+            created_at=record.created_at,
+        ).model_dump(),
+        message="已提交重新解析",
+    )
 
 
 @router.delete("/{file_id}", summary="删除文件")
@@ -142,7 +174,7 @@ async def delete_file(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "文件不存在"},
+            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "文件不存在", "detail": None},
         )
     await db.commit()
     return make_response(message="删除成功")

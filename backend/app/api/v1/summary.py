@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
-from app.schemas.common import ErrorCode, make_response
+from app.schemas.common import ErrorCode, make_paginated_response, make_response
 from app.schemas.summary import GenerateSummaryReq, SummaryItem
 from app.services.summary_service import SummaryService
 
@@ -47,14 +47,17 @@ async def generate_summary(
 
 @router.get("", summary="历史总结列表")
 async def list_summaries(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    mode: str | None = Query(default=None, description="筛选模式: brief / detailed"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取当前用户的所有总结记录"""
+    """获取当前用户的所有总结记录（分页，可按 mode 筛选）"""
     service = SummaryService(db)
-    summaries = await service.list_summaries(current_user.id)
-    return make_response(
-        data=[
+    summaries, total = await service.list_summaries(current_user.id, page, page_size, mode)
+    return make_paginated_response(
+        items=[
             SummaryItem(
                 id=s.id,
                 source_type=s.source_type,
@@ -65,7 +68,10 @@ async def list_summaries(
                 created_at=s.created_at,
             ).model_dump()
             for s in summaries
-        ]
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -81,7 +87,7 @@ async def get_summary(
     if not summary:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "总结记录不存在"},
+            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "总结记录不存在", "detail": None},
         )
     return make_response(
         data=SummaryItem(
@@ -108,7 +114,7 @@ async def delete_summary(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "总结记录不存在"},
+            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "总结记录不存在", "detail": None},
         )
     await db.commit()
     return make_response(message="删除成功")

@@ -7,7 +7,7 @@ import uuid
 from typing import AsyncIterator
 
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm_client import llm_client
@@ -108,15 +108,28 @@ class KnowledgeService:
         await self.db.flush()
         return graph
 
-    async def list_graphs(self, user_id: str) -> list[KnowledgeGraph]:
-        """获取用户的图谱列表（按时间倒序）"""
+    async def list_graphs(
+        self, user_id: str, page: int = 1, page_size: int = 20
+    ) -> tuple[list[KnowledgeGraph], int]:
+        """获取用户的图谱列表（按时间倒序，含 node_count/edge_count）"""
+        count_stmt = (
+            select(func.count())
+            .select_from(KnowledgeGraph)
+            .where(KnowledgeGraph.user_id == user_id)
+        )
+        result = await self.db.execute(count_stmt)
+        total = result.scalar() or 0
+
         stmt = (
             select(KnowledgeGraph)
             .where(KnowledgeGraph.user_id == user_id)
             .order_by(KnowledgeGraph.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        graphs = list(result.scalars().all())
+        return graphs, total
 
     async def get_graph(self, graph_id: str, user_id: str) -> KnowledgeGraph | None:
         """获取单个图谱"""
@@ -128,36 +141,52 @@ class KnowledgeService:
     async def get_node_detail(
         self, graph_id: str, node_id: str, user_id: str
     ) -> dict | None:
-        """获取图谱中某个节点的详情"""
+        """获取图谱中某个节点的详情（对齐 spec: node_id, label, description, examples, common_mistakes, related_nodes）"""
         graph = await self.get_graph(graph_id, user_id)
         if not graph:
             return None
         nodes = graph.nodes or []
+        edges = graph.edges or []
+
+        target_node = None
         for node in nodes:
             if node.get("id") == node_id:
-                # 找到指向该节点的所有边
-                related_edges = [
-                    e for e in (graph.edges or [])
-                    if e.get("source") == node_id or e.get("target") == node_id
-                ]
-                related_nodes = []
-                for e in related_edges:
-                    neighbor_id = e["target"] if e["source"] == node_id else e["source"]
-                    neighbor = next(
-                        (n for n in nodes if n.get("id") == neighbor_id), None
-                    )
-                    if neighbor:
-                        related_nodes.append({
-                            "node": neighbor,
-                            "relation": e.get("relation", ""),
-                            "direction": "out" if e["source"] == node_id else "in",
-                        })
-                return {
-                    "node": node,
-                    "related_nodes": related_nodes,
-                    "relation_count": len(related_edges),
-                }
-        return None
+                target_node = node
+                break
+
+        if not target_node:
+            return None
+
+        # 找关联节点
+        related_nodes = []
+        for e in edges:
+            if e.get("source") == node_id:
+                neighbor_id = e.get("target")
+                neighbor = next((n for n in nodes if n.get("id") == neighbor_id), None)
+                if neighbor:
+                    related_nodes.append({
+                        "id": neighbor.get("id", ""),
+                        "label": neighbor.get("label", ""),
+                        "relation": e.get("relation", ""),
+                    })
+            elif e.get("target") == node_id:
+                neighbor_id = e.get("source")
+                neighbor = next((n for n in nodes if n.get("id") == neighbor_id), None)
+                if neighbor:
+                    related_nodes.append({
+                        "id": neighbor.get("id", ""),
+                        "label": neighbor.get("label", ""),
+                        "relation": e.get("relation", ""),
+                    })
+
+        return {
+            "node_id": target_node.get("id", node_id),
+            "label": target_node.get("label", ""),
+            "description": target_node.get("description", ""),
+            "examples": target_node.get("examples", []),
+            "common_mistakes": target_node.get("common_mistakes", []),
+            "related_nodes": related_nodes,
+        }
 
     async def delete_graph(self, graph_id: str, user_id: str) -> bool:
         """删除图谱"""

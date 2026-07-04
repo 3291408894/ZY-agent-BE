@@ -32,14 +32,17 @@ class GenerateExerciseReq(BaseModel):
 
 
 class ExerciseItem(BaseModel):
+    """生成阶段的习题（不含答案）"""
     id: str
     question: str
-    question_type: QuestionType
+    question_type: str
     options: list[str] | None = None
-    answer: str | None = None  # 做题模式下为 null
-    analysis: str | None = None  # 做题模式下为 null
-    difficulty: Difficulty
-    knowledge_points: list[str]
+    answer: str | None = None  # 生成阶段为 null
+    analysis: str | None = None  # 生成阶段为 null
+    difficulty: str
+    knowledge_points: list[str] = []
+    subject: str = ""
+    grade: str = ""
 
 
 # --- 批改 ---
@@ -49,16 +52,16 @@ class AnswerItem(BaseModel):
 
 
 class GradeReq(BaseModel):
-    batch_id: str | None = None
+    batch_id: str
     answers: list[AnswerItem]
 
 
 class GradedItem(BaseModel):
     exercise_id: str
-    is_correct: bool
+    is_correct: bool | None
     score: float
     correct_answer: str
-    analysis: str
+    analysis: str | None = None
     error_reason: str | None = None
     related_knowledge: list[str] = []
 
@@ -68,3 +71,11 @@ class GradeResp(BaseModel):
     correct_count: int
     total_count: int
     results: list[GradedItem]
+
+
+# --- 批次 ---
+class ExerciseBatchItem(BaseModel):
+    id: str
+    exercises: list[dict] = []
+    grade_result: dict | None = None
+    created_at: str = ""

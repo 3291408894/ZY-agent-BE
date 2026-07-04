@@ -4,16 +4,22 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # --- 注册 ---
 class RegisterReq(BaseModel):
-    email: EmailStr | None = None
+    email: str | None = None
     phone: str | None = None
     password: str = Field(..., min_length=8, max_length=64)
     grade: str = Field(..., description="年级，如'七年级'")
-    subjects: list[str] = Field(default_factory=list)
+    subjects: list[str] = Field(default_factory=list, description="学科偏好，至少1个")
+
+    @model_validator(mode="after")
+    def check_email_or_phone(self):
+        if not self.email and not self.phone:
+            raise ValueError("邮箱和手机号至少需要提供一个")
+        return self
 
 
 class RegisterResp(BaseModel):
@@ -63,7 +69,19 @@ class UserProfileResp(BaseModel):
     subjects: list[str]
     textbook_version: str | None
     avatar_url: str | None
-    created_at: datetime
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+# --- 密码重置 ---
+class SendResetCodeReq(BaseModel):
+    email: str = Field(..., description="接收验证码的邮箱")
+
+
+class VerifyResetCodeReq(BaseModel):
+    email: str
+    code: str = Field(..., min_length=6, max_length=6, description="6位验证码")
+    new_password: str = Field(..., min_length=8, max_length=64, description="新密码")
 
 
 # --- 仪表盘 (PBI_02) ---

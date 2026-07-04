@@ -2,7 +2,7 @@
 AI Agent 服务层 (PBI_04, PBI_12)
 """
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.chat import ChatMessage, ChatSession
@@ -14,7 +14,9 @@ class AgentService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_or_create_session(self, user_id: str, session_id: str | None = None, title: str = "新对话") -> ChatSession:
+    async def get_or_create_session(
+        self, user_id: str, session_id: str | None = None, title: str = "新对话"
+    ) -> ChatSession:
         """获取已有会话或创建新会话"""
         if session_id:
             session = await self.db.get(ChatSession, session_id)
@@ -53,15 +55,30 @@ class AgentService:
         await self.db.flush()
         return msg
 
-    async def list_sessions(self, user_id: str) -> list[ChatSession]:
-        """获取用户的会话列表（按更新时间倒序）"""
+    async def list_sessions(
+        self, user_id: str, page: int = 1, page_size: int = 20
+    ) -> tuple[list[ChatSession], int]:
+        """获取用户的会话列表（按更新时间倒序，分页）"""
+        # 总数
+        count_stmt = (
+            select(func.count())
+            .select_from(ChatSession)
+            .where(ChatSession.user_id == user_id)
+        )
+        result = await self.db.execute(count_stmt)
+        total = result.scalar() or 0
+
+        # 分页查询
         stmt = (
             select(ChatSession)
             .where(ChatSession.user_id == user_id)
             .order_by(ChatSession.updated_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        sessions = list(result.scalars().all())
+        return sessions, total
 
     async def get_messages(self, session_id: str, user_id: str) -> list[ChatMessage]:
         """获取会话的历史消息"""

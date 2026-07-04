@@ -124,15 +124,28 @@ class FileService:
             return record
         return None
 
-    async def list_files(self, user_id: str) -> list[UploadedFile]:
-        """获取用户的文件列表（按时间倒序）"""
+    async def list_files(
+        self, user_id: str, page: int = 1, page_size: int = 20, file_type: str | None = None,
+    ) -> tuple[list[UploadedFile], int]:
+        """获取用户的文件列表（按时间倒序，可分页和筛选）"""
+        from sqlalchemy import func
+        conditions = [UploadedFile.user_id == user_id]
+        if file_type:
+            conditions.append(UploadedFile.file_type == file_type)
+
+        count_stmt = select(func.count()).select_from(UploadedFile).where(*conditions)
+        result = await self.db.execute(count_stmt)
+        total = result.scalar() or 0
+
         stmt = (
             select(UploadedFile)
-            .where(UploadedFile.user_id == user_id)
+            .where(*conditions)
             .order_by(UploadedFile.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return list(result.scalars().all()), total
 
     async def delete_file(self, file_id: str, user_id: str) -> bool:
         """删除文件记录及磁盘文件"""

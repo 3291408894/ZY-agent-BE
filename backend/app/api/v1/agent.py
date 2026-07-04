@@ -12,7 +12,7 @@ from app.ai.agent.orchestrator import agent_orchestrator
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
 from app.schemas.agent import ChatReq, ChatSessionItem, ChatMessageItem
-from app.schemas.common import ErrorCode, make_response
+from app.schemas.common import ErrorCode, make_paginated_response, make_response
 from app.services.agent_service import AgentService
 
 router = APIRouter()
@@ -57,15 +57,11 @@ async def chat(
                     full_response += event["chunk"]
                 elif event["type"] == "done":
                     # 保存 AI 回复
-                    async with db.bind.connect() as conn:
-                        from sqlalchemy.ext.asyncio import AsyncSession as AS
-                        async with AS(conn) as new_db:
-                            svc = AgentService(new_db)
-                            await svc.save_message(
-                                session.id, "assistant", full_response,
-                                thought_chain=thought_chain,
-                            )
-                            await new_db.commit()
+                    await service.save_message(
+                        session.id, "assistant", full_response,
+                        thought_chain=thought_chain,
+                    )
+                    await db.commit()
                 # SSE 格式输出
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         except Exception as e:
@@ -84,14 +80,16 @@ async def chat(
 
 @router.get("/sessions", summary="会话列表")
 async def list_sessions(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取当前用户的对话会话列表"""
+    """获取当前用户的对话会话列表（分页）"""
     service = AgentService(db)
-    sessions = await service.list_sessions(current_user.id)
-    return make_response(
-        data=[
+    sessions, total = await service.list_sessions(current_user.id, page, page_size)
+    return make_paginated_response(
+        items=[
             ChatSessionItem(
                 id=s.id,
                 title=s.title,
@@ -99,7 +97,10 @@ async def list_sessions(
                 updated_at=s.updated_at,
             ).model_dump()
             for s in sessions
-        ]
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -119,7 +120,7 @@ async def get_session_messages(
         if not session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "会话不存在"},
+                detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "会话不存在", "detail": None},
             )
     return make_response(
         data=[

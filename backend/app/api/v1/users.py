@@ -33,6 +33,7 @@ async def get_profile(
             textbook_version=user.textbook_version,
             avatar_url=user.avatar_url,
             created_at=user.created_at,
+            updated_at=user.updated_at,
         ).model_dump()
     )
 
@@ -49,7 +50,7 @@ async def update_profile(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": ErrorCode.USER_NOT_FOUND, "message": "用户不存在"},
+            detail={"code": ErrorCode.USER_NOT_FOUND, "message": "用户不存在", "detail": None},
         )
     await db.commit()
     return make_response(
@@ -63,6 +64,7 @@ async def update_profile(
             textbook_version=user.textbook_version,
             avatar_url=user.avatar_url,
             created_at=user.created_at,
+            updated_at=user.updated_at,
         ).model_dump(),
         message="更新成功",
     )

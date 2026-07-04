@@ -1,5 +1,5 @@
 """
-习题路由 (PBI_08, PBI_09, PBI_10) — 生成、提交、批改
+习题路由 (PBI_08, PBI_09, PBI_10) — 生成、提交、批改、历史
 """
 
 import json
@@ -23,7 +23,7 @@ async def generate_exercises(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """根据学科/知识点/难度生成练习题，SSE 流式返回"""
+    """根据学科/知识点/难度生成练习题，SSE 流式返回（逐题 + 进度，答案在生成阶段为 null）"""
     service = ExerciseService(db)
 
     async def event_stream():
@@ -38,6 +38,8 @@ async def generate_exercises(
         ):
             if event["type"] == "done":
                 await db.commit()
+            elif event["type"] == "exercise":
+                await db.commit()  # 逐题提交，防止丢失
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
@@ -86,8 +88,13 @@ async def get_batch_detail(
 ):
     """查看某个批次的详细作答"""
     service = ExerciseService(db)
-    details = await service.get_batch_detail(batch_id, current_user.id)
-    return make_response(data=details)
+    detail = await service.get_batch_detail(batch_id, current_user.id)
+    if not detail:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "批次不存在", "detail": None},
+        )
+    return make_response(data=detail)
 
 
 @router.delete("/batches/{batch_id}", summary="删除批次")
@@ -98,11 +105,11 @@ async def delete_batch(
 ):
     """删除某个批次的作答记录"""
     service = ExerciseService(db)
-    deleted = await service.delete_batch(batch_id, current_user.id)
-    if deleted == 0:
+    success = await service.delete_batch(batch_id, current_user.id)
+    if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "批次不存在"},
+            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "批次不存在", "detail": None},
         )
     await db.commit()
-    return make_response(message=f"已删除 {deleted} 条记录")
+    return make_response(message="删除成功")

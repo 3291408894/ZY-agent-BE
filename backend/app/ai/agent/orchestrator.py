@@ -110,7 +110,7 @@ class AgentOrchestrator:
             yield {
                 "type": "done",
                 "session_id": session_id,
-                "usage": {"total_chars": len(full_response)},
+                "usage": {"tokens": len(full_response)},
             }
 
         except Exception as e:

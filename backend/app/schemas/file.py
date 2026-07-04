@@ -8,20 +8,29 @@ from pydantic import BaseModel
 
 
 class FileUploadResp(BaseModel):
-    file_id: str
+    id: str
+    user_id: str
     filename: str
-    file_size: int
     file_type: str
+    file_size: int
+    storage_path: str
     parse_status: str
+    parsed_content: str | None = None
+    summary: str | None = None
+    knowledge_points: list | None = None
     created_at: datetime
 
 
 class FileStatusResp(BaseModel):
-    file_id: str
+    id: str
+    filename: str
+    file_type: str
+    file_size: int
     parse_status: str
     parsed_content: str | None = None
     summary: str | None = None
-    knowledge_points: list[str] = []
+    knowledge_points: list | None = None
+    created_at: datetime
 
 
 class FileItem(BaseModel):

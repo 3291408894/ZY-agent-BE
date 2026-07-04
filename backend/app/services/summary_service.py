@@ -6,7 +6,7 @@ import json
 from typing import AsyncIterator
 
 from loguru import logger
-from sqlalchemy import delete, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm_client import llm_client
@@ -64,10 +64,9 @@ class SummaryService:
         mode: str = "detailed",
         file_id: str | None = None,
     ) -> AsyncIterator[dict]:
-        """流式生成总结"""
+        """流式生成总结 — 对齐 spec: content → knowledge_points → done"""
         # 创建记录
         summary = await self.create_summary(user_id, source_type, content, mode, file_id)
-        yield {"type": "meta", "summary_id": summary.id}
 
         # 选择 prompt 模板
         if mode == "brief":
@@ -86,8 +85,14 @@ class SummaryService:
                 full_text += chunk
                 yield {"type": "content", "chunk": chunk}
 
-            # 提取知识点（简单按关键词拆）
-            knowledge_points = self._extract_knowledge_points(full_text)
+            # 提取知识点（格式化为 KnowledgePoint 列表）
+            raw_points = self._extract_knowledge_points(full_text)
+            knowledge_points = [
+                {"name": p, "category": "知识点"} for p in raw_points
+            ]
+
+            # 发送知识点事件
+            yield {"type": "knowledge_points", "points": knowledge_points}
 
             # 更新记录
             await self.update_summary_result(summary.id, full_text, knowledge_points)
@@ -95,21 +100,35 @@ class SummaryService:
             yield {
                 "type": "done",
                 "summary_id": summary.id,
-                "knowledge_points": knowledge_points,
+                "mode": mode,
             }
         except Exception as e:
             logger.error(f"总结生成失败: {e}")
             yield {"type": "error", "message": f"AI 服务暂时不可用: {str(e)}"}
 
-    async def list_summaries(self, user_id: str) -> list[Summary]:
-        """获取用户的总结历史（按时间倒序）"""
+    async def list_summaries(
+        self, user_id: str, page: int = 1, page_size: int = 20, mode: str | None = None,
+    ) -> tuple[list[Summary], int]:
+        """获取用户的总结历史（按时间倒序，可分页和筛选）"""
+        # 总数
+        conditions = [Summary.user_id == user_id]
+        if mode:
+            conditions.append(Summary.mode == mode)
+        count_stmt = select(func.count()).select_from(Summary).where(*conditions)
+        result = await self.db.execute(count_stmt)
+        total = result.scalar() or 0
+
+        # 分页
         stmt = (
             select(Summary)
-            .where(Summary.user_id == user_id)
+            .where(*conditions)
             .order_by(Summary.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        summaries = list(result.scalars().all())
+        return summaries, total
 
     async def get_summary(self, summary_id: str, user_id: str) -> Summary | None:
         """获取单条总结详情"""
@@ -131,11 +150,10 @@ class SummaryService:
     def _extract_knowledge_points(text: str) -> list[str]:
         """从总结文本中简单提取知识点（后续可改用 LLM 提取）"""
         points = []
-        # 查找「重点考点」或「知识点」部分的关键词行
         for line in text.split("\n"):
             line = line.strip()
             if line.startswith(("- ", "• ", "* ", "· ")):
                 point = line.lstrip("- •*·").strip()
                 if point and len(point) > 1:
                     points.append(point)
-        return points[:10]  # 最多 10 个
+        return points[:10]

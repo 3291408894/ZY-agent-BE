@@ -7,13 +7,15 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.redis import close_redis
 from app.middleware.cors import setup_cors
 from app.middleware.logging import setup_logging_middleware
+from app.schemas.common import ErrorCode
 
 
 @asynccontextmanager
@@ -39,6 +41,18 @@ def create_app() -> FastAPI:
     # 中间件
     setup_cors(app)
     setup_logging_middleware(app)
+
+    # 统一异常处理器
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": ErrorCode.INTERNAL_ERROR,
+                "message": "服务器内部错误",
+                "detail": str(exc) if settings.DEBUG else None,
+            },
+        )
 
     # 路由
     app.include_router(api_router)

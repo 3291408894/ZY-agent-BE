@@ -7,6 +7,12 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class KnowledgePoint(BaseModel):
+    """知识点"""
+    name: str
+    category: str
+
+
 class GenerateSummaryReq(BaseModel):
     source_type: str = Field(..., description="text 或 file")
     content: str = Field(..., description="课文原文")
@@ -20,5 +26,5 @@ class SummaryItem(BaseModel):
     source_content: str
     summary_text: str
     mode: str
-    knowledge_points: list[str]
+    knowledge_points: list[KnowledgePoint] = []
     created_at: datetime
