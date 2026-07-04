@@ -270,7 +270,9 @@ async def test_grade_answers_success(
             headers=auth_headers,
         )
         assert response.status_code == 200
-        data = response.json()
+        body = response.json()
+        assert body["code"] == 0
+        data = body["data"]
         assert data["total_count"] == 2
         assert data["correct_count"] == 1
         assert "results" in data

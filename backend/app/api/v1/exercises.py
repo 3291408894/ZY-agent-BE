@@ -57,8 +57,16 @@ async def generate_exercises(
 
     async def event_stream():
         try:
+            # 开始事件
+            yield {
+                "event": "start",
+                "data": json.dumps(
+                    {"type": "start", "total": len(exercises)},
+                    ensure_ascii=False,
+                ),
+            }
+
             for i, ex in enumerate(exercises):
-                # 做题模式隐藏答案和解析
                 exercise_data = {
                     "id": ex.id,
                     "question": ex.question,
@@ -69,24 +77,29 @@ async def generate_exercises(
                     "difficulty": ex.difficulty,
                     "knowledge_points": ex.knowledge_points,
                 }
+                # 进度事件（独立推送）
                 yield {
-                    "event": "exercise",
+                    "event": "progress",
                     "data": json.dumps(
                         {
-                            "type": "exercise",
-                            "progress": {
-                                "generated": i + 1,
-                                "total": len(exercises),
-                            },
-                            "exercise": exercise_data,
+                            "type": "progress",
+                            "generated": i + 1,
+                            "total": len(exercises),
                         },
                         ensure_ascii=False,
                     ),
                 }
-                # 逐题间隔，营造流式体验
+                # 习题事件
+                yield {
+                    "event": "exercise",
+                    "data": json.dumps(
+                        {"type": "exercise", "exercise": exercise_data},
+                        ensure_ascii=False,
+                    ),
+                }
                 await asyncio.sleep(0.08)
 
-            # 完成事件 — 返回全部习题摘要
+            # 完成事件
             all_exercises = []
             for ex in exercises:
                 all_exercises.append(
@@ -131,9 +144,7 @@ async def generate_exercises(
 # ════════════════════════════════════════════════════════════════
 
 
-@router.post(
-    "/grade", response_model=GradeResp, summary="批改作答", tags=["习题"]
-)
+@router.post("/grade", summary="批改作答", tags=["习题"])
 async def grade_answers(
     req: GradeReq,
     current_user: User = Depends(get_current_user),
@@ -141,6 +152,8 @@ async def grade_answers(
 ):
     """
     提交一套作答，由 LLM 自动批改并返回评分和纠错建议。
+
+    返回统一格式: {code:0, message:"ok", data: GradeResp}
     """
     service = ExerciseService(db)
     try:
@@ -150,7 +163,7 @@ async def grade_answers(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": ErrorCode.PARAM_INVALID, "message": str(e)},
         )
-    return result
+    return make_response(result.model_dump())
 
 
 # ════════════════════════════════════════════════════════════════
