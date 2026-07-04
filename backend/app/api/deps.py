@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import AsyncSessionLocal
 from app.core.security import decode_token
 from app.models.user import User
+from app.schemas.common import ErrorCode
 
 security = HTTPBearer(auto_error=False)
 
@@ -32,21 +33,45 @@ async def get_current_user(
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="缺少认证令牌",
+            detail={
+                "code": ErrorCode.TOKEN_INVALID,
+                "message": "缺少认证令牌，请在 Header 中提供 Authorization: Bearer <token>",
+                "detail": None,
+            },
         )
+
     token = credentials.credentials
     try:
         payload = decode_token(token)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token 无效或已过期",
+            detail={
+                "code": ErrorCode.TOKEN_EXPIRED,
+                "message": "Token 无效或已过期，请重新登录",
+                "detail": None,
+            },
         )
+
+    if payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": ErrorCode.TOKEN_INVALID,
+                "message": "请使用 Access Token（而非 Refresh Token）访问此接口",
+                "detail": None,
+            },
+        )
+
     user = await db.get(User, payload["sub"])
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户不存在或已禁用",
+            detail={
+                "code": ErrorCode.USER_NOT_FOUND,
+                "message": "用户不存在或账户已被禁用",
+                "detail": None,
+            },
         )
     return user
 
@@ -60,6 +85,8 @@ async def get_optional_user(
         return None
     try:
         payload = decode_token(credentials.credentials)
+        if payload.get("type") != "access":
+            return None
         return await db.get(User, payload["sub"])
     except Exception:
         return None

@@ -35,8 +35,8 @@ class User(Base):
 
     # 关系
     profile: Mapped["LearningProfile"] = relationship(back_populates="user", uselist=False)
-    chat_sessions: Mapped[list["ChatSession"]] = relationship(back_populates="user")
     summaries: Mapped[list["Summary"]] = relationship(back_populates="user")
+    chat_sessions: Mapped[list["ChatSession"]] = relationship(back_populates="user")
     uploaded_files: Mapped[list["UploadedFile"]] = relationship(back_populates="user")
     exercises: Mapped[list["Exercise"]] = relationship(back_populates="user")
     exercise_attempts: Mapped[list["ExerciseAttempt"]] = relationship(back_populates="user")
