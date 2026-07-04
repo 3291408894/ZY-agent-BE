@@ -16,9 +16,24 @@ class UserService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def get_by_email_or_phone(
+        self, email: str | None, phone: str | None
+    ) -> User | None:
+        """按邮箱或手机号查找用户"""
+        stmt = select(User).where(
+            (User.email == email) | (User.phone == phone)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def reset_password(self, user: User, new_password: str) -> None:
+        """重置用户密码"""
+        user.hashed_password = hash_password(new_password)
+        self.db.add(user)
+        await self.db.flush()
+
     async def register(self, req: RegisterReq) -> User:
         """注册新用户，自动创建学习档案"""
-        # TODO: 校验邮箱/手机号唯一性
         user = User(
             email=req.email,
             phone=req.phone,
