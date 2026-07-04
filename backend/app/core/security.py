@@ -1,30 +1,33 @@
 """
-安全模块 — JWT 令牌生成/验证 + 密码哈希
+安全模块 — JWT 令牌生成/验证 + bcrypt 密码哈希
+
+直接使用 bcrypt，避免 passlib 与新版 bcrypt 的兼容性问题
 """
 
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
 
-# 密码哈希上下文 (bcrypt)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ============================================================
-# 密码
+# 密码哈希（直接使用 bcrypt）
 # ============================================================
 
 
 def hash_password(password: str) -> str:
     """对明文密码进行 bcrypt 哈希"""
-    return pwd_context.hash(password)
+    # bcrypt 要求密码不超过 72 字节
+    pwd_bytes = password.encode("utf-8")[:72]
+    return bcrypt.hashpw(pwd_bytes, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """验证明文密码与哈希是否匹配"""
-    return pwd_context.verify(plain_password, hashed_password)
+    pwd_bytes = plain_password.encode("utf-8")[:72]
+    return bcrypt.checkpw(pwd_bytes, hashed_password.encode("utf-8"))
 
 
 # ============================================================
@@ -63,7 +66,9 @@ def create_refresh_token(subject: str) -> str:
 def decode_token(token: str) -> dict:
     """解码并验证 JWT Token，返回 payload"""
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+        )
         return payload
     except JWTError as e:
         raise ValueError(f"Token 无效或已过期: {e}")

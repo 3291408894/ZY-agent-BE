@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(..., min_length=32)
 
     # --- 数据库 ---
-    DATABASE_URL: str = "mysql+asyncmy://root:root@localhost:3306/zhiyi"
+    DATABASE_URL: str = "mysql+aiomysql://root:root@localhost:3306/zhiyi"
 
     # --- Redis ---
     REDIS_URL: str = "redis://localhost:6379/0"

@@ -7,7 +7,7 @@ uvicorn[standard]>=0.29
 
 # Database
 sqlalchemy[asyncio]>=2.0,<3.0
-asyncmy>=0.2
+aiomysql>=0.2
 alembic>=1.13
 
 # Validation
@@ -16,7 +16,6 @@ pydantic-settings>=2.2
 
 # Auth
 python-jose[cryptography]>=3.3
-passlib[bcrypt]>=1.7
 bcrypt>=4.1
 
 # File Upload
