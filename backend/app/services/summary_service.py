@@ -113,7 +113,7 @@ class SummaryService:
                 {"role": "system", "content": "你是一位K12教育专家。请严格按JSON格式输出。"},
                 {"role": "user", "content": prompt},
             ]
-            response = await llm_client.chat_complete(
+            response = await llm_client.chat(
                 messages, temperature=0.3, max_tokens=2048
             )
             # 尝试从回复中提取 JSON

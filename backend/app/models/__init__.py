@@ -10,11 +10,13 @@ from app.models.chat import ChatSession, ChatMessage
 from app.models.file import UploadedFile
 from app.models.exercise import Exercise, ExerciseAttempt
 from app.models.knowledge import KnowledgeGraph
+from app.models.summary import Summary
 
 __all__ = [
     "Base",
     "User",
     "LearningProfile",
+    "Summary",
     "ChatSession",
     "ChatMessage",
     "UploadedFile",
