@@ -17,6 +17,9 @@ from loguru import logger
 from app.ai.agent.tools import tool_registry
 from app.ai.llm_client import llm_client
 
+# 导入各模块工具以触发自动注册
+import app.ai.agent.exercise_tools  # noqa: F401
+
 SYSTEM_PROMPT = """你是智翼（ZhiYi）AI 学习助手，专为 K12 学生提供学习辅导。
 
 ## 你的能力

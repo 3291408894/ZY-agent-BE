@@ -12,7 +12,7 @@ from app.api.v1.agent import router as agent_router
 # 第二阶段模块路由（后续取消注释即可激活）
 # ============================================================
 from app.api.v1.summary import router as summary_router
-# from app.api.v1.exercises import router as exercises_router
+from app.api.v1.exercises import router as exercises_router
 # from app.api.v1.files import router as files_router
 # from app.api.v1.knowledge import router as knowledge_router
 
@@ -30,8 +30,8 @@ api_router.include_router(agent_router, prefix="/agent", tags=["AI Agent"])
 # --- 课文总结模块 (PBI_06) ✅ 已激活 ---
 api_router.include_router(summary_router, prefix="/summaries", tags=["课文总结"])
 
-# --- 习题模块 (PBI_08, PBI_09, PBI_10) — Sprint 2 ---
-# api_router.include_router(exercises_router, prefix="/exercises", tags=["习题"])
+# --- 习题模块 (PBI_08, PBI_09, PBI_10) ✅ 已激活 ---
+api_router.include_router(exercises_router, prefix="/exercises", tags=["习题"])
 
 # --- 文件管理模块 (PBI_05) — Sprint 2 ---
 # api_router.include_router(files_router, prefix="/files", tags=["文件管理"])

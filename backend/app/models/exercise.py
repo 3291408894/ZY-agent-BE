@@ -18,6 +18,9 @@ class Exercise(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    batch_id: Mapped[str] = mapped_column(
+        String(36), default=lambda: str(uuid.uuid4()), index=True
+    )
 
     subject: Mapped[str] = mapped_column(String(32))
     grade: Mapped[str] = mapped_column(String(32))
