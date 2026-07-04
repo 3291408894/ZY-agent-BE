@@ -12,7 +12,7 @@ from fastapi import APIRouter
 # from app.api.v1.agent import router as agent_router
 # from app.api.v1.summary import router as summary_router
 # from app.api.v1.exercises import router as exercises_router
-# from app.api.v1.files import router as files_router
+from app.api.v1.files import router as files_router
 # from app.api.v1.knowledge import router as knowledge_router
 
 api_router = APIRouter(prefix="/api/v1")
@@ -33,7 +33,7 @@ api_router = APIRouter(prefix="/api/v1")
 # api_router.include_router(exercises_router, prefix="/exercises", tags=["习题"])
 
 # --- 文件管理模块 (PBI_05) ---
-# api_router.include_router(files_router, prefix="/files", tags=["文件管理"])
+api_router.include_router(files_router, prefix="/files", tags=["文件管理"])
 
 # --- 知识图谱模块 (PBI_11) ---
 # api_router.include_router(knowledge_router, prefix="/knowledge", tags=["知识图谱"])
