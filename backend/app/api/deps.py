@@ -1,20 +1,21 @@
-"""API 依赖注入 — get_db, get_current_user"""
+"""
+API 依赖注入 — 数据库会话、当前用户、权限校验
+"""
 
-from typing import AsyncGenerator
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
-from app.core.security import decode_access_token
+from app.core.security import decode_token
 from app.models.user import User
+from app.schemas.common import ErrorCode
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """每个请求获取独立数据库会话，请求结束后自动提交/回滚"""
+async def get_db():
+    """每个请求获取独立的数据库会话，请求结束后自动提交/回滚"""
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -25,37 +26,67 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    """从 JWT Token 中解析当前用户"""
-    token = credentials.credentials
-    payload = decode_access_token(token)
-    if payload is None:
+    """从 JWT Token 解析当前用户，未登录则抛 401"""
+    if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token 无效或已过期",
+            detail={
+                "code": ErrorCode.TOKEN_INVALID,
+                "message": "缺少认证令牌，请在 Header 中提供 Authorization: Bearer <token>",
+                "detail": None,
+            },
         )
 
-    result = await db.execute(select(User).where(User.id == payload["sub"]))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=401, detail="用户不存在")
-    if not user.is_active:
-        raise HTTPException(status_code=403, detail="账号已被禁用")
+    token = credentials.credentials
+    try:
+        payload = decode_token(token)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": ErrorCode.TOKEN_EXPIRED,
+                "message": "Token 无效或已过期，请重新登录",
+                "detail": None,
+            },
+        )
+
+    if payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": ErrorCode.TOKEN_INVALID,
+                "message": "请使用 Access Token（而非 Refresh Token）访问此接口",
+                "detail": None,
+            },
+        )
+
+    user = await db.get(User, payload["sub"])
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": ErrorCode.USER_NOT_FOUND,
+                "message": "用户不存在或账户已被禁用",
+                "detail": None,
+            },
+        )
     return user
 
 
 async def get_optional_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(
-        HTTPBearer(auto_error=False)
-    ),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> User | None:
-    """可选用户认证（用于支持未登录浏览部分内容）"""
+    """可选认证 — 有 Token 就解析，没有则返回 None"""
     if credentials is None:
         return None
     try:
-        return await get_current_user(credentials, db)
-    except HTTPException:
+        payload = decode_token(credentials.credentials)
+        if payload.get("type") != "access":
+            return None
+        return await db.get(User, payload["sub"])
+    except Exception:
         return None

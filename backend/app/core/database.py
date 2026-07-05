@@ -1,18 +1,22 @@
-"""SQLAlchemy 2.0 异步数据库引擎 + 会话工厂（兼容 SQLite & PostgreSQL）"""
+"""
+数据库引擎 & 会话管理 — SQLAlchemy 2.0 异步
+"""
 
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
-# 根据数据库类型选择引擎参数
-_is_sqlite = settings.DATABASE_URL.startswith("sqlite")
-_engine_kwargs = {"echo": settings.DEBUG}
-if not _is_sqlite:
-    _engine_kwargs.update({"pool_size": 20, "max_overflow": 10, "pool_pre_ping": True})
+# 异步引擎
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.DEBUG,
+    pool_size=20,
+    max_overflow=10,
+    pool_pre_ping=True,
+)
 
-engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
-
+# 异步会话工厂
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -20,6 +24,6 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
+# 声明式基类
 class Base(DeclarativeBase):
-    """所有模型的基类"""
     pass

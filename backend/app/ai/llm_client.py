@@ -1,7 +1,9 @@
-"""LLM 客户端封装 — OpenAI 兼容接口，支持流式和非流式调用"""
+"""
+LLM 客户端封装 — 统一的 AI 模型调用接口
+"""
 
-import json
 from typing import AsyncIterator
+
 import httpx
 from loguru import logger
 
@@ -9,14 +11,12 @@ from app.core.config import settings
 
 
 class LLMClient:
-    """LLM API 客户端（OpenAI 兼容协议）"""
+    """通用 LLM 客户端，支持 OpenAI 兼容 API"""
 
-    def __init__(self) -> None:
-        self.api_base = settings.LLM_API_BASE_URL.rstrip("/")
+    def __init__(self):
+        self.base_url = settings.LLM_API_BASE_URL.rstrip("/")
         self.api_key = settings.LLM_API_KEY
         self.model = settings.LLM_MODEL
-        self.max_retries = 3
-        self.timeout = 120.0  # 流式请求需要较长超时
 
     @property
     def _headers(self) -> dict:
@@ -25,77 +25,75 @@ class LLMClient:
             "Content-Type": "application/json",
         }
 
-    async def chat_complete(
+    async def chat(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict],
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> str:
-        """非流式调用，返回完整回复文本"""
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            for attempt in range(self.max_retries):
-                try:
-                    response = await client.post(
-                        f"{self.api_base}/chat/completions",
-                        headers=self._headers,
-                        json={
-                            "model": self.model,
-                            "messages": messages,
-                            "temperature": temperature,
-                            "max_tokens": max_tokens,
-                        },
-                    )
-                    response.raise_for_status()
-                    data = response.json()
-                    content = data["choices"][0]["message"]["content"]
-                    logger.info(f"LLM 非流式调用成功 | model={self.model} | tokens={data.get('usage', {}).get('total_tokens', '?')}")
-                    return content
-                except Exception as e:
-                    logger.warning(f"LLM 调用失败 (attempt {attempt + 1}/{self.max_retries}): {e}")
-                    if attempt == self.max_retries - 1:
-                        raise
+        """非流式对话 — 返回完整回复"""
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"{self.base_url}/chat/completions",
+                headers=self._headers,
+                json={
+                    "model": self.model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
 
     async def chat_stream(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict],
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
-        """流式调用，逐块返回增量文本"""
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            for attempt in range(self.max_retries):
-                try:
-                    async with client.stream(
-                        "POST",
-                        f"{self.api_base}/chat/completions",
-                        headers=self._headers,
-                        json={
-                            "model": self.model,
-                            "messages": messages,
-                            "temperature": temperature,
-                            "max_tokens": max_tokens,
-                            "stream": True,
-                        },
-                    ) as response:
-                        response.raise_for_status()
-                        async for line in response.aiter_lines():
-                            if line.startswith("data: "):
-                                data_str = line[6:]
-                                if data_str.strip() == "[DONE]":
-                                    return
-                                try:
-                                    data = json.loads(data_str)
-                                    delta = data["choices"][0].get("delta", {})
-                                    content = delta.get("content", "")
-                                    if content:
-                                        yield content
-                                except json.JSONDecodeError:
-                                    continue
-                    return  # 正常完成
-                except Exception as e:
-                    logger.warning(f"LLM 流式调用失败 (attempt {attempt + 1}/{self.max_retries}): {e}")
-                    if attempt == self.max_retries - 1:
-                        raise
+        """流式对话 — 逐块 yield 文本增量"""
+        async with httpx.AsyncClient(timeout=120) as client:
+            async with client.stream(
+                "POST",
+                f"{self.base_url}/chat/completions",
+                headers=self._headers,
+                json={
+                    "model": self.model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "stream": True,
+                },
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if line.startswith("data: "):
+                        chunk = line[6:]
+                        if chunk == "[DONE]":
+                            break
+                        try:
+                            import json
+
+                            data = json.loads(chunk)
+                            delta = data["choices"][0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                yield content
+                        except Exception:
+                            continue
+
+    async def chat_with_retry(self, messages: list[dict], retries: int = 3) -> str:
+        """带重试的非流式对话"""
+        for attempt in range(retries):
+            try:
+                return await self.chat(messages)
+            except Exception as e:
+                logger.warning(f"LLM 调用失败 (尝试 {attempt + 1}/{retries}): {e}")
+                if attempt == retries - 1:
+                    raise
+        raise RuntimeError("LLM 调用失败，已达最大重试次数")
 
 
 # 全局单例

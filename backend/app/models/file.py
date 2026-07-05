@@ -1,18 +1,33 @@
-"""文件管理 — SQLAlchemy 数据模型桩 (PBI_05)"""
+"""
+上传文件模型 (PBI_05)
+"""
 
-from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey
+import uuid
+from datetime import datetime
+
+from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
 
 class UploadedFile(Base):
     __tablename__ = "uploaded_files"
-    id = Column(String(36), primary_key=True)
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
-    filename = Column(String(255), nullable=False)
-    file_type = Column(String(16), nullable=False)
-    file_size = Column(Integer, default=0)
-    storage_path = Column(String(512), default="")
-    parse_status = Column(String(16), default="pending")
-    parsed_content = Column(Text, default="")
-    created_at = Column(DateTime(timezone=True), nullable=False)
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+
+    filename: Mapped[str] = mapped_column(String(255))
+    file_type: Mapped[str] = mapped_column(String(16))  # pdf / docx / txt / md / csv / json / html / xml / yaml
+    file_size: Mapped[int] = mapped_column(BigInteger)  # 字节数
+    storage_path: Mapped[str] = mapped_column(String(512))
+    parse_status: Mapped[str] = mapped_column(
+        String(16), default="pending"
+    )  # pending / processing / done / failed
+    parsed_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # 关系
+    user: Mapped["User"] = relationship(back_populates="uploaded_files")
