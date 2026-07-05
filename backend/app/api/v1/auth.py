@@ -36,6 +36,7 @@ async def register(req: RegisterReq, db: AsyncSession = Depends(get_db)):
         )
     user = await service.register(req)
     await db.commit()
+    await db.refresh(user)  # commit 后刷新，避免 MissingGreenlet
     return make_response(
         data=RegisterResp(
             user_id=user.id,

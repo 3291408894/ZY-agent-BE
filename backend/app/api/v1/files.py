@@ -45,15 +45,25 @@ async def upload_file(
             detail={"code": ErrorCode.FILE_FORMAT_UNSUPPORTED, "message": str(e), "detail": None},
         )
 
+    # 保存 file_id，避免 commit 后 ORM 对象过期
+    file_id = record.id
     await db.commit()
 
     # 自动解析
     if auto_parse:
         try:
-            await service.parse_file(record.id)
+            await service.parse_file(file_id)
             await db.commit()
         except Exception:
             pass  # 解析失败不影响上传成功
+
+    # 重新查询，拿到最新数据
+    record = await service.get_file(file_id, current_user.id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": ErrorCode.INTERNAL_ERROR, "message": "文件保存后查询失败", "detail": None},
+        )
 
     return make_response(
         data=FileUploadResp(
@@ -66,7 +76,7 @@ async def upload_file(
             parse_status=record.parse_status,
             parsed_content=record.parsed_content,
             created_at=record.created_at,
-        ).model_dump(),
+        ).model_dump(mode="json"),
         message="上传成功",
     )
 
@@ -91,7 +101,7 @@ async def list_files(
                 file_size=f.file_size,
                 parse_status=f.parse_status,
                 created_at=f.created_at,
-            ).model_dump()
+            ).model_dump(mode="json")
             for f in files
         ],
         total=total,
@@ -157,7 +167,7 @@ async def reparse_file(
             parse_status=record.parse_status,
             parsed_content=record.parsed_content,
             created_at=record.created_at,
-        ).model_dump(),
+        ).model_dump(mode="json"),
         message="已提交重新解析",
     )
 

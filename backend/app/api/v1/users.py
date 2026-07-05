@@ -53,6 +53,7 @@ async def update_profile(
             detail={"code": ErrorCode.USER_NOT_FOUND, "message": "用户不存在", "detail": None},
         )
     await db.commit()
+    await db.refresh(user)  # commit 后刷新，避免 MissingGreenlet
     return make_response(
         data=UserProfileResp(
             id=user.id,

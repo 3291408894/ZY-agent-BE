@@ -35,6 +35,7 @@ async def generate_graph(
         file_id=req.file_id,
     )
     await db.commit()
+    await db.refresh(graph)  # commit 后刷新，避免 MissingGreenlet
     return make_response(
         data=KnowledgeGraphResp(
             graph_id=graph.id,
