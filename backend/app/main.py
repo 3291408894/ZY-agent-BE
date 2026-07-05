@@ -7,12 +7,17 @@ from loguru import logger
 
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.core.database import Base, engine
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     logger.info(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION} 启动中...")
+    # 自动建表（免去手动 migration）
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("✅ 数据库表已就绪")
     yield
     logger.info("👋 应用已关闭")
 
