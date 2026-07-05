@@ -35,12 +35,11 @@ class User(Base):
 
     # 关系
     profile: Mapped["LearningProfile"] = relationship(back_populates="user", uselist=False)
-    chat_sessions: Mapped[list["ChatSession"]] = relationship(back_populates="user")
     summaries: Mapped[list["Summary"]] = relationship(back_populates="user")
+    chat_sessions: Mapped[list["ChatSession"]] = relationship(back_populates="user")
     uploaded_files: Mapped[list["UploadedFile"]] = relationship(back_populates="user")
     exercises: Mapped[list["Exercise"]] = relationship(back_populates="user")
     exercise_attempts: Mapped[list["ExerciseAttempt"]] = relationship(back_populates="user")
-    exercise_batches: Mapped[list["ExerciseBatch"]] = relationship(back_populates="user")
     knowledge_graphs: Mapped[list["KnowledgeGraph"]] = relationship(back_populates="user")
 
 
@@ -64,31 +63,3 @@ class LearningProfile(Base):
 
     # 关系
     user: Mapped["User"] = relationship(back_populates="profile")
-
-
-class RefreshToken(Base):
-    """JWT 刷新令牌"""
-    __tablename__ = "refresh_tokens"
-
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    token_hash: Mapped[str] = mapped_column(String(255), unique=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-
-class PasswordResetToken(Base):
-    """密码重置令牌"""
-    __tablename__ = "password_reset_tokens"
-
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    token_hash: Mapped[str] = mapped_column(String(255), unique=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    used: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

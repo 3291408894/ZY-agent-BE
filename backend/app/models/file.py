@@ -3,7 +3,7 @@
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -27,7 +27,10 @@ class UploadedFile(Base):
         String(16), default="pending"
     )  # pending / processing / done / failed
     parsed_content: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
 
     # 关系
     user: Mapped["User"] = relationship(back_populates="uploaded_files")

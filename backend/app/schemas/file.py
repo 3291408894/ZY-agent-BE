@@ -16,21 +16,15 @@ class FileUploadResp(BaseModel):
     storage_path: str
     parse_status: str
     parsed_content: str | None = None
-    summary: str | None = None
-    knowledge_points: list | None = None
     created_at: datetime
 
 
 class FileStatusResp(BaseModel):
-    id: str
-    filename: str
-    file_type: str
-    file_size: int
+    file_id: str
     parse_status: str
     parsed_content: str | None = None
     summary: str | None = None
-    knowledge_points: list | None = None
-    created_at: datetime
+    knowledge_points: list[str] = []
 
 
 class FileItem(BaseModel):

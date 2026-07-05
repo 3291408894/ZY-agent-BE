@@ -37,22 +37,5 @@ class KnowledgeGraphResp(BaseModel):
 class KnowledgeGraphItem(BaseModel):
     id: str
     title: str
-    node_count: int = 0
-    edge_count: int = 0
     source_type: str
     created_at: datetime
-
-
-class RelatedNode(BaseModel):
-    id: str
-    label: str
-    relation: str
-
-
-class NodeDetailResp(BaseModel):
-    node_id: str
-    label: str
-    description: str = ""
-    examples: list[str] = []
-    common_mistakes: list[str] = []
-    related_nodes: list[RelatedNode] = []

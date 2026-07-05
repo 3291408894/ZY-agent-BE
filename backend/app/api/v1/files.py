@@ -127,9 +127,11 @@ async def get_file_status(
     return make_response(
         data={
             "id": record.id,
+            "user_id": record.user_id,
             "filename": record.filename,
             "file_type": record.file_type,
             "file_size": record.file_size,
+            "storage_path": record.storage_path,
             "parse_status": record.parse_status,
             "parsed_content": record.parsed_content,
             "created_at": record.created_at.isoformat() if record.created_at else None,
@@ -145,9 +147,8 @@ async def reparse_file(
 ):
     """重新触发文件解析，返回完整文件对象"""
     service = FileService(db)
-    try:
-        await service.reparse(file_id, current_user.id)
-    except ValueError:
+    result = await service.reparse(file_id, current_user.id)
+    if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "文件不存在", "detail": None},
@@ -156,6 +157,11 @@ async def reparse_file(
 
     # 读取更新后的记录
     record = await service.get_file(file_id, current_user.id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": ErrorCode.INTERNAL_ERROR, "message": "重新解析后查询失败", "detail": None},
+        )
     return make_response(
         data=FileUploadResp(
             id=record.id,

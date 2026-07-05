@@ -5,25 +5,22 @@
 from app.core.database import Base
 
 # 模型导入（Alembic 需要在此导入以检测表）
-from app.models.user import User, LearningProfile, RefreshToken, PasswordResetToken
+from app.models.user import User, LearningProfile
 from app.models.chat import ChatSession, ChatMessage
-from app.models.summary import Summary
 from app.models.file import UploadedFile
-from app.models.exercise import Exercise, ExerciseBatch, ExerciseAttempt
+from app.models.exercise import Exercise, ExerciseAttempt
 from app.models.knowledge import KnowledgeGraph
+from app.models.summary import Summary
 
 __all__ = [
     "Base",
     "User",
     "LearningProfile",
-    "RefreshToken",
-    "PasswordResetToken",
+    "Summary",
     "ChatSession",
     "ChatMessage",
-    "Summary",
     "UploadedFile",
     "Exercise",
-    "ExerciseBatch",
     "ExerciseAttempt",
     "KnowledgeGraph",
 ]

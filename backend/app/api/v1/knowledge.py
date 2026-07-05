@@ -1,5 +1,7 @@
 """
 知识图谱路由 (PBI_11) — 生成、查询、导出
+
+TODO: Sprint 2 实现
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -8,13 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
 from app.schemas.common import ErrorCode, make_paginated_response, make_response
-from app.schemas.knowledge import (
-    GenerateGraphReq,
-    KnowledgeGraphItem,
-    KnowledgeGraphResp,
-    NodeDetailResp,
-    RelatedNode,
-)
+from app.schemas.knowledge import GenerateGraphReq, KnowledgeGraphItem, KnowledgeGraphResp
 from app.services.knowledge_service import KnowledgeService
 
 router = APIRouter()

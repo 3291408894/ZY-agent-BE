@@ -37,29 +37,6 @@ class Exercise(Base):
     attempts: Mapped[list["ExerciseAttempt"]] = relationship(back_populates="exercise")
 
 
-class ExerciseBatch(Base):
-    """习题批次 (PBI_09) — 一次生成/练习的多道题归为一个批次"""
-    __tablename__ = "exercise_batches"
-
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-
-    subject: Mapped[str] = mapped_column(String(32))
-    grade: Mapped[str] = mapped_column(String(32))
-    total_count: Mapped[int] = mapped_column(Integer)
-    correct_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    total_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending / doing / done
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    # 关系
-    user: Mapped["User"] = relationship(back_populates="exercise_batches")
-    attempts: Mapped[list["ExerciseAttempt"]] = relationship(back_populates="batch")
-
-
 class ExerciseAttempt(Base):
     __tablename__ = "exercise_attempts"
 
@@ -69,9 +46,6 @@ class ExerciseAttempt(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     exercise_id: Mapped[str] = mapped_column(
         ForeignKey("exercises.id", ondelete="CASCADE"), index=True
-    )
-    batch_id: Mapped[str | None] = mapped_column(
-        ForeignKey("exercise_batches.id", ondelete="SET NULL"), index=True, nullable=True
     )
 
     user_answer: Mapped[str] = mapped_column(Text)
@@ -83,4 +57,3 @@ class ExerciseAttempt(Base):
     # 关系
     user: Mapped["User"] = relationship(back_populates="exercise_attempts")
     exercise: Mapped["Exercise"] = relationship(back_populates="attempts")
-    batch: Mapped["ExerciseBatch"] = relationship(back_populates="attempts")

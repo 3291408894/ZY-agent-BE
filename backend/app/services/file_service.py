@@ -8,7 +8,7 @@ from pathlib import Path
 
 import aiofiles
 from loguru import logger
-from sqlalchemy import delete, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -27,6 +27,8 @@ class FileService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    # ── 上传 ─────────────────────────────────────────────
 
     async def upload(
         self, user_id: str, filename: str, content: bytes
@@ -59,8 +61,10 @@ class FileService:
         await self.db.flush()
         return record
 
+    # ── 解析 ─────────────────────────────────────────────
+
     async def parse_file(self, file_id: str) -> str:
-        """解析文件内容（异步处理）"""
+        """解析文件内容（同步执行，由调用方管理事务）"""
         record = await self.db.get(UploadedFile, file_id)
         if not record:
             raise ValueError("文件不存在")
@@ -97,46 +101,57 @@ class FileService:
             raise
 
     async def _parse_pdf(self, path: str) -> str:
-        """解析 PDF 文件"""
+        """解析 PDF 文件（可选依赖）"""
         try:
             from PyPDF2 import PdfReader
+
             reader = PdfReader(path)
             text = ""
             for page in reader.pages:
-                text += page.extract_text() or ""
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
             return text
         except ImportError:
             raise RuntimeError("PDF 解析需要安装 PyPDF2: pip install PyPDF2")
 
     async def _parse_docx(self, path: str) -> str:
-        """解析 DOCX 文件"""
+        """解析 DOCX 文件（可选依赖）"""
         try:
             from docx import Document
+
             doc = Document(path)
             return "\n".join(p.text for p in doc.paragraphs)
         except ImportError:
             raise RuntimeError("DOCX 解析需要安装 python-docx: pip install python-docx")
 
+    # ── 查询 ─────────────────────────────────────────────
+
     async def get_file(self, file_id: str, user_id: str) -> UploadedFile | None:
-        """获取单个文件记录"""
+        """获取单个文件记录（带用户校验）"""
         record = await self.db.get(UploadedFile, file_id)
         if record and record.user_id == user_id:
             return record
         return None
 
     async def list_files(
-        self, user_id: str, page: int = 1, page_size: int = 20, file_type: str | None = None,
+        self,
+        user_id: str,
+        page: int = 1,
+        page_size: int = 20,
+        file_type: str | None = None,
     ) -> tuple[list[UploadedFile], int]:
         """获取用户的文件列表（按时间倒序，可分页和筛选）"""
-        from sqlalchemy import func
         conditions = [UploadedFile.user_id == user_id]
         if file_type:
             conditions.append(UploadedFile.file_type == file_type)
 
+        # 总数
         count_stmt = select(func.count()).select_from(UploadedFile).where(*conditions)
         result = await self.db.execute(count_stmt)
         total = result.scalar() or 0
 
+        # 列表
         stmt = (
             select(UploadedFile)
             .where(*conditions)
@@ -146,6 +161,8 @@ class FileService:
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all()), total
+
+    # ── 删除 ─────────────────────────────────────────────
 
     async def delete_file(self, file_id: str, user_id: str) -> bool:
         """删除文件记录及磁盘文件"""
@@ -162,8 +179,10 @@ class FileService:
         await self.db.flush()
         return True
 
+    # ── 重新解析 ─────────────────────────────────────────
+
     async def reparse(self, file_id: str, user_id: str) -> UploadedFile | None:
-        """重新解析文件"""
+        """重新触发文件解析"""
         record = await self.db.get(UploadedFile, file_id)
         if not record or record.user_id != user_id:
             return None
