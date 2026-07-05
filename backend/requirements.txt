@@ -8,6 +8,7 @@ uvicorn[standard]>=0.29
 # Database
 sqlalchemy[asyncio]>=2.0,<3.0
 aiomysql>=0.3
+aiosqlite>=0.20
 alembic>=1.13
 
 # Validation

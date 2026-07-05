@@ -19,7 +19,7 @@ env/
 .coverage
 htmlcov/
 .pytest_cache/
-test.db
+*.db
 
 # Environment
 .env
