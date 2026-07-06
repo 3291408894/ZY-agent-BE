@@ -42,7 +42,6 @@ async def generate_exercises(
     解析模式 (mode=review)：返回完整答案和解析
     """
     service = ExerciseService(db)
-    is_practice = req.mode == "practice"
 
     try:
         batch_id, exercises = await service.generate(current_user.id, req)
@@ -72,8 +71,8 @@ async def generate_exercises(
                     "question": ex.question,
                     "question_type": ex.question_type,
                     "options": ex.options,
-                    "answer": None if is_practice else ex.answer,
-                    "analysis": None if is_practice else ex.analysis,
+                    "answer": ex.answer,
+                    "analysis": ex.analysis,
                     "difficulty": ex.difficulty,
                     "knowledge_points": ex.knowledge_points,
                 }
@@ -108,8 +107,8 @@ async def generate_exercises(
                         "question": ex.question,
                         "question_type": ex.question_type,
                         "options": ex.options,
-                        "answer": None if is_practice else ex.answer,
-                        "analysis": None if is_practice else ex.analysis,
+                        "answer": ex.answer,
+                        "analysis": ex.analysis,
                         "difficulty": ex.difficulty,
                         "knowledge_points": ex.knowledge_points,
                     }

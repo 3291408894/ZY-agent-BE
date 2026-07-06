@@ -2,6 +2,7 @@
 习题服务层 (PBI_08, PBI_09, PBI_10) — 习题生成、批改、历史记录
 """
 
+import difflib
 import json
 import re
 import uuid
@@ -85,6 +86,18 @@ class ExerciseService:
                 logger.warning(f"跳过无 question 字段的习题: {item}")
                 continue
 
+            answer = item.get("answer") or ""
+            analysis = item.get("analysis") or ""
+
+            # 选择题自动推断答案：如果 answer 为空且是选择题，尝试匹配选项
+            if not answer and item.get("question_type") == "choice" and item.get("options"):
+                opt_text = item.get("answer_text", "") or item.get("correct_option", "")
+                for i, opt in enumerate(item["options"]):
+                    prefix = f"{chr(65 + i)}. "
+                    if opt == opt_text or opt.startswith(prefix + opt_text) if opt_text else False:
+                        answer = opt
+                        break
+
             exercise = Exercise(
                 user_id=user_id,
                 batch_id=batch_id,
@@ -97,8 +110,8 @@ class ExerciseService:
                 ),
                 question=item["question"],
                 options=item.get("options"),
-                answer=item.get("answer", ""),
-                analysis=item.get("analysis", ""),
+                answer=answer,
+                analysis=analysis,
                 difficulty=item.get(
                     "difficulty",
                     req.difficulty.value
@@ -142,9 +155,12 @@ class ExerciseService:
         if not exercises_map:
             raise ValueError("未找到需要批改的习题")
 
-        # 构建 LLM 批改输入（仅提交存在的题目）
-        answers_for_llm = []
+        # 分离客观题和主观题
+        objective_results: list[dict] = []   # 确定性判分结果
+        subjective_answers: list[AnswerItem] = []  # 送 LLM 判分的
+        answers_for_llm: list[dict] = []
         valid_answers: list[AnswerItem] = []
+
         for ans in req.answers:
             ex = exercises_map.get(ans.exercise_id)
             if not ex:
@@ -152,43 +168,61 @@ class ExerciseService:
                     f"忽略不存在的习题 | exercise_id={ans.exercise_id}"
                 )
                 continue
-            answers_for_llm.append(
-                {
-                    "exercise_id": ans.exercise_id,
-                    "question": ex.question,
-                    "question_type": ex.question_type,
-                    "options": ex.options,
-                    "correct_answer": ex.answer,
-                    "analysis": ex.analysis,
-                    "user_answer": ans.user_answer,
-                }
-            )
             valid_answers.append(ans)
 
-        if not answers_for_llm:
+            # 客观题用代码判分
+            obj_is_correct, obj_score = self._grade_objective(
+                ex.question_type, ans.user_answer, ex.answer
+            )
+            if obj_is_correct is not None:
+                objective_results.append(
+                    self._build_fallback_graded_item(
+                        ans.exercise_id, obj_is_correct, obj_score,
+                        ex.answer, ex.analysis,
+                    )
+                )
+            else:
+                subjective_answers.append(ans)
+                answers_for_llm.append(
+                    {
+                        "exercise_id": ans.exercise_id,
+                        "question": ex.question,
+                        "question_type": ex.question_type,
+                        "options": ex.options,
+                        "correct_answer": ex.answer,
+                        "analysis": ex.analysis,
+                        "user_answer": ans.user_answer,
+                    }
+                )
+
+        if not valid_answers:
             raise ValueError("提交的作答中没有可批改的习题")
 
-        grading_prompt = GRADING_USER_TEMPLATE.format(
-            answers_json=json.dumps(answers_for_llm, ensure_ascii=False)
-        )
+        # LLM 批改主观题
+        llm_graded_data: list[dict] = []
+        if answers_for_llm:
+            grading_prompt = GRADING_USER_TEMPLATE.format(
+                answers_json=json.dumps(answers_for_llm, ensure_ascii=False)
+            )
+            messages = [
+                {"role": "system", "content": GRADING_SYSTEM_PROMPT},
+                {"role": "user", "content": grading_prompt},
+            ]
+            logger.info(
+                f"用户 {user_id} 提交批改 | 客观题={len(objective_results)} "
+                f"| 主观题={len(answers_for_llm)}"
+            )
+            raw = await llm_client.chat_with_retry(messages)
+            llm_graded_data = self._parse_llm_json(raw)
 
-        messages = [
-            {"role": "system", "content": GRADING_SYSTEM_PROMPT},
-            {"role": "user", "content": grading_prompt},
-        ]
+        # 合并所有结果
+        all_graded = objective_results + llm_graded_data
 
-        logger.info(
-            f"用户 {user_id} 提交批改 | 题目数={len(answers_for_llm)}"
-        )
-        raw = await llm_client.chat_with_retry(messages)
-        graded_data = self._parse_llm_json(raw)
-
-        # 存储作答记录 & 汇总结果
         total_score = 0.0
         correct_count = 0
         results: list[GradedItem] = []
 
-        for item in graded_data:
+        for item in all_graded:
             eid = item.get("exercise_id", "")
             is_correct = bool(item.get("is_correct", False))
             score = float(item.get("score", 0))
@@ -203,13 +237,18 @@ class ExerciseService:
                 user_answer=matched_answer.user_answer if matched_answer else "",
                 is_correct=is_correct,
                 score=score,
-                graded_by="auto",
+                graded_by="auto" if eid in (i["exercise_id"] for i in llm_graded_data) else "deterministic",
             )
             self.db.add(attempt)
 
             total_score += score
             if is_correct:
                 correct_count += 1
+
+            matched_answer = next(
+                (a for a in valid_answers if a.exercise_id == eid), None
+            )
+            user_ans = matched_answer.user_answer if matched_answer else ""
 
             results.append(
                 GradedItem(
@@ -218,6 +257,7 @@ class ExerciseService:
                     score=score,
                     correct_answer=item.get("correct_answer", ""),
                     analysis=item.get("analysis", ""),
+                    user_answer=user_ans,
                     error_reason=item.get("error_reason"),
                     related_knowledge=item.get("related_knowledge", []),
                 )
@@ -418,6 +458,55 @@ class ExerciseService:
                 f"共 {result.rowcount} 道习题"
             )
         return result.rowcount
+
+    # ── 客观题确定性判分 ──────────────────────────────────────
+
+    @staticmethod
+    def _grade_objective(
+        question_type: str, user_answer: str, correct_answer: str
+    ) -> tuple[bool, float]:
+        """
+        对客观题进行确定性判分，不依赖 LLM。
+
+        Returns:
+            (is_correct, score): 20 分制
+        """
+        ua = (user_answer or "").strip()
+        ca = (correct_answer or "").strip()
+        if not ua:
+            return False, 0.0
+
+        if question_type == "choice":
+            # 选择题：精确匹配选项字母或选项全文
+            is_correct = ua == ca or ua.upper().lstrip("ABCD") == ca.upper().lstrip("ABCD")
+            return (is_correct, 20.0 if is_correct else 0.0)
+
+        if question_type == "fill":
+            # 填空题：忽略大小写和首尾空格
+            is_correct = ua.lower() == ca.lower()
+            if not is_correct:
+                ratio = difflib.SequenceMatcher(None, ua.lower(), ca.lower()).ratio()
+                is_correct = ratio >= 0.85
+            return (is_correct, 20.0 if is_correct else 0.0)
+
+        # 其他题型走 LLM
+        return (None, 0.0)  # None 表示需要 LLM 判分
+
+    @staticmethod
+    def _build_fallback_graded_item(
+        eid: str, is_correct: bool, score: float,
+        correct_answer: str, analysis: str,
+    ) -> dict:
+        """构造确定性判分的 GradedItem 字典"""
+        return {
+            "exercise_id": eid,
+            "is_correct": is_correct,
+            "score": score,
+            "correct_answer": correct_answer,
+            "analysis": analysis,
+            "error_reason": None if is_correct else "答案不正确，请查看参考答案",
+            "related_knowledge": [],
+        }
 
     # ── 工具方法 ────────────────────────────────────────────────
 

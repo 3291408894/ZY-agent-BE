@@ -72,6 +72,7 @@ class GradedItem(BaseModel):
     score: float
     correct_answer: str
     analysis: str
+    user_answer: str = ""
     error_reason: str | None = None
     related_knowledge: list[str] = []
 
