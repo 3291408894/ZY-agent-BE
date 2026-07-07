@@ -5,7 +5,7 @@ API v1 路由聚合 — 按文档规范组织所有子路由
 from fastapi import APIRouter
 
 # ============================================================
-# 导入各模块路由（初期先占位导入，模块开发时逐个取消注释）
+# 导入各模块路由
 # ============================================================
 # from app.api.v1.auth import router as auth_router
 # from app.api.v1.users import router as users_router
@@ -14,6 +14,8 @@ from fastapi import APIRouter
 # from app.api.v1.exercises import router as exercises_router
 # from app.api.v1.files import router as files_router
 # from app.api.v1.knowledge import router as knowledge_router
+from app.api.v1.teacher.classes import router as teacher_classes_router
+from app.api.v1.student.classes import router as student_classes_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -37,6 +39,12 @@ api_router = APIRouter(prefix="/api/v1")
 
 # --- 知识图谱模块 (PBI_11) ---
 # api_router.include_router(knowledge_router, prefix="/knowledge", tags=["知识图谱"])
+
+# --- 班级管理 — 教师端 ---
+api_router.include_router(teacher_classes_router, prefix="/teacher/classes", tags=["班级管理-教师端"])
+
+# --- 班级管理 — 学生端 ---
+api_router.include_router(student_classes_router, prefix="/student/classes", tags=["班级管理-学生端"])
 
 
 # ============================================================

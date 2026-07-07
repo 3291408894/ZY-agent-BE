@@ -20,6 +20,9 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=True)
     phone: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(
+        String(20), default="student", comment="用户角色: student-学生, teacher-教师, admin-管理员"
+    )
 
     nickname: Mapped[str] = mapped_column(String(64), default="同学")
     grade: Mapped[str] = mapped_column(String(32), nullable=True)  # 如 "七年级"
@@ -41,6 +44,8 @@ class User(Base):
     exercises: Mapped[list["Exercise"]] = relationship(back_populates="user")
     exercise_attempts: Mapped[list["ExerciseAttempt"]] = relationship(back_populates="user")
     knowledge_graphs: Mapped[list["KnowledgeGraph"]] = relationship(back_populates="user")
+    owned_classes: Mapped[list["Class"]] = relationship(back_populates="teacher", foreign_keys="Class.teacher_id")
+    class_memberships: Mapped[list["ClassStudent"]] = relationship(back_populates="student", foreign_keys="ClassStudent.student_id")
 
 
 class LearningProfile(Base):
