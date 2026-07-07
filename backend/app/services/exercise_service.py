@@ -257,6 +257,9 @@ class ExerciseService:
             f"| correct={correct_count}/{len(answers)} | score={total_score}"
         )
 
+        # 同步更新学习档案
+        await self._sync_learning_profile(user_id)
+
         return {
             "total_score": total_score,
             "correct_count": correct_count,
@@ -440,3 +443,64 @@ class ExerciseService:
         if deleted:
             logger.info(f"习题记录已删除 | user={user_id} | deleted_count={result.rowcount}")
         return deleted
+
+    # ================================================================
+    # 学习档案同步
+    # ================================================================
+
+    async def _sync_learning_profile(self, user_id: str) -> None:
+        """同步更新学习档案中的统计数据"""
+        from app.models.user import LearningProfile
+        from sqlalchemy import select as sa_select
+
+        profile_stmt = sa_select(LearningProfile).where(LearningProfile.user_id == user_id)
+        profile_result = await self.db.execute(profile_stmt)
+        profile = profile_result.scalar_one_or_none()
+
+        if not profile:
+            return
+
+        # 重新计算做题总数和正确率
+        total_stmt = (
+            select(func.count())
+            .select_from(ExerciseAttempt)
+            .where(ExerciseAttempt.user_id == user_id)
+        )
+        total = (await self.db.execute(total_stmt)).scalar() or 0
+
+        correct_stmt = (
+            select(func.count())
+            .select_from(ExerciseAttempt)
+            .where(
+                ExerciseAttempt.user_id == user_id,
+                ExerciseAttempt.is_correct == True,
+            )
+        )
+        correct = (await self.db.execute(correct_stmt)).scalar() or 0
+
+        profile.total_exercises = total
+        profile.correct_rate = round(correct / total, 2) if total > 0 else 0.0
+
+        # 学习时长估算（每次答题约 2 分钟 = 120 秒）
+        profile.total_study_time = (profile.total_study_time or 0) + 120
+
+        # 更新薄弱知识点
+        weak_kp_stmt = (
+            select(Exercise.knowledge_points)
+            .join(ExerciseAttempt, ExerciseAttempt.exercise_id == Exercise.id)
+            .where(
+                ExerciseAttempt.user_id == user_id,
+                ExerciseAttempt.is_correct == False,
+            )
+            .order_by(ExerciseAttempt.created_at.desc())
+            .limit(50)
+        )
+        weak_kp_rows = (await self.db.execute(weak_kp_stmt)).scalars().all()
+        kp_counter: dict[str, int] = {}
+        for kp_list in weak_kp_rows:
+            for kp in (kp_list or []):
+                name = kp if isinstance(kp, str) else kp.get("name", str(kp))
+                kp_counter[name] = kp_counter.get(name, 0) + 1
+        profile.weak_points = sorted(kp_counter, key=kp_counter.get, reverse=True)[:10]
+
+        await self.db.flush()

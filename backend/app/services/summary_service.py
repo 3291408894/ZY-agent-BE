@@ -92,6 +92,9 @@ class SummaryService:
         self.db.add(summary)
         await self.db.flush()  # flush 产生 ID，由 deps.get_db 统一 commit
 
+        # 同步更新学习档案
+        await self._sync_learning_profile(user_id)
+
         logger.info(f"总结已保存 | summary_id={summary.id} | user={user_id} | mode={mode.value} | len={len(full_text)}")
 
         # 5. 完成事件
@@ -213,8 +216,26 @@ class SummaryService:
         )
 
     # ─────────────────────────────────────────────────────
-    # 删除
+    # 学习档案同步
     # ─────────────────────────────────────────────────────
+
+    async def _sync_learning_profile(self, user_id: str) -> None:
+        """同步更新学习档案中的统计数据"""
+        from app.models.user import LearningProfile
+        from sqlalchemy import select as sa_select
+
+        profile_stmt = sa_select(LearningProfile).where(LearningProfile.user_id == user_id)
+        profile_result = await self.db.execute(profile_stmt)
+        profile = profile_result.scalar_one_or_none()
+
+        if profile:
+            # 累加学习时长（每次总结约 10 分钟 = 600 秒）
+            profile.total_study_time = (profile.total_study_time or 0) + 600
+            await self.db.flush()
+
+    # ══════════════════════════════════════════════════════════
+    # 删除
+    # ══════════════════════════════════════════════════════════
 
     async def delete_summary(self, user_id: str, summary_id: str) -> bool:
         """删除一条总结记录（软性校验归属）"""

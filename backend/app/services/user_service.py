@@ -5,7 +5,7 @@
 import random
 import string
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -283,18 +283,153 @@ class UserService:
 
     async def get_dashboard(self, user_id: str) -> dict:
         """聚合仪表盘数据（学习统计 + 近期记录 + 推荐）"""
-        # 查询学习档案（注意：user_id 不是 LearningProfile 的主键，需要用 where）
+        from app.models.summary import Summary
+        from app.models.exercise import Exercise, ExerciseAttempt
+
+        # --- 1. 统计数据：从 exercise_attempts 表实时计算 ---
+        # 做题总数
+        total_exercises_stmt = (
+            select(func.count())
+            .select_from(ExerciseAttempt)
+            .where(ExerciseAttempt.user_id == user_id)
+        )
+        total_exercises = (await self.db.execute(total_exercises_stmt)).scalar() or 0
+
+        # 正确数 & 正确率
+        correct_stmt = (
+            select(func.count())
+            .select_from(ExerciseAttempt)
+            .where(
+                ExerciseAttempt.user_id == user_id,
+                ExerciseAttempt.is_correct == True,
+            )
+        )
+        correct_count = (await self.db.execute(correct_stmt)).scalar() or 0
+        correct_rate = round(correct_count / total_exercises, 2) if total_exercises > 0 else 0.0
+
+        # 学习时长估算：总结数 × 10分钟 + 做题数 × 2分钟（单位：秒）
+        summary_count_stmt = (
+            select(func.count())
+            .select_from(Summary)
+            .where(Summary.user_id == user_id)
+        )
+        summary_count = (await self.db.execute(summary_count_stmt)).scalar() or 0
+        total_study_time = summary_count * 600 + total_exercises * 120
+
+        # --- 2. 近期总结：最近 5 条 ---
+        recent_summaries_stmt = (
+            select(Summary)
+            .where(Summary.user_id == user_id)
+            .order_by(Summary.created_at.desc())
+            .limit(5)
+        )
+        recent_summaries_rows = (await self.db.execute(recent_summaries_stmt)).scalars().all()
+        recent_summaries = [
+            {
+                "id": s.id,
+                "source_content": s.source_content[:100] if s.source_content else "",
+                "summary_text": s.summary_text[:200] if s.summary_text else "",
+                "mode": s.mode,
+                "knowledge_points": s.knowledge_points or [],
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+            }
+            for s in recent_summaries_rows
+        ]
+
+        # --- 3. 近期做题记录：最近 5 条（含习题信息和作答结果） ---
+        recent_attempts_stmt = (
+            select(ExerciseAttempt, Exercise)
+            .join(Exercise, ExerciseAttempt.exercise_id == Exercise.id)
+            .where(ExerciseAttempt.user_id == user_id)
+            .order_by(ExerciseAttempt.created_at.desc())
+            .limit(5)
+        )
+        recent_attempts_rows = (await self.db.execute(recent_attempts_stmt)).all()
+        recent_exercises = [
+            {
+                "attempt_id": attempt.id,
+                "exercise_id": exercise.id,
+                "question": exercise.question[:200] if exercise.question else "",
+                "question_type": exercise.question_type,
+                "subject": exercise.subject,
+                "difficulty": exercise.difficulty,
+                "knowledge_points": exercise.knowledge_points or [],
+                "user_answer": attempt.user_answer,
+                "is_correct": attempt.is_correct,
+                "score": attempt.score,
+                "created_at": attempt.created_at.isoformat() if attempt.created_at else None,
+            }
+            for attempt, exercise in recent_attempts_rows
+        ]
+
+        # --- 4. 薄弱知识点：从错题中统计 ---
+        weak_kp_stmt = (
+            select(Exercise.knowledge_points)
+            .join(ExerciseAttempt, ExerciseAttempt.exercise_id == Exercise.id)
+            .where(
+                ExerciseAttempt.user_id == user_id,
+                ExerciseAttempt.is_correct == False,
+            )
+            .order_by(ExerciseAttempt.created_at.desc())
+            .limit(50)
+        )
+        weak_kp_rows = (await self.db.execute(weak_kp_stmt)).scalars().all()
+        kp_counter: dict[str, int] = {}
+        for kp_list in weak_kp_rows:
+            for kp in (kp_list or []):
+                name = kp if isinstance(kp, str) else kp.get("name", str(kp))
+                kp_counter[name] = kp_counter.get(name, 0) + 1
+        weak_points = sorted(kp_counter, key=kp_counter.get, reverse=True)[:10]
+
+        # --- 5. 学习推荐：基于薄弱知识点生成 ---
+        recommendations = []
+        if weak_points:
+            top_weak = weak_points[:3]
+            recommendations.append({
+                "type": "review",
+                "title": "针对性复习",
+                "description": f"你在 {', '.join(top_weak)} 方面需要加强，建议回顾相关知识点并做专项练习。",
+                "knowledge_points": top_weak,
+            })
+        if summary_count > 0:
+            recommendations.append({
+                "type": "summary",
+                "title": "继续课文学习",
+                "description": f"你已完成 {summary_count} 篇课文总结，继续保持！尝试用 AI 助手深入理解文章。",
+                "action": "generate_summary",
+            })
+        if total_exercises > 0:
+            recommendations.append({
+                "type": "practice",
+                "title": "巩固练习",
+                "description": f"已完成 {total_exercises} 道习题，正确率 {int(correct_rate * 100)}%。建议每天保持 5-10 道练习量。",
+                "action": "start_practice",
+            })
+        else:
+            recommendations.append({
+                "type": "get_started",
+                "title": "开始首次练习",
+                "description": "你还没有做过习题，试试 AI 智能出题功能，检测当前水平吧！",
+                "action": "start_practice",
+            })
+
+        # --- 6. 同步更新 LearningProfile（保持档案数据一致） ---
         stmt = select(LearningProfile).where(LearningProfile.user_id == user_id)
         result = await self.db.execute(stmt)
         profile = result.scalar_one_or_none()
+        if profile:
+            profile.total_study_time = total_study_time
+            profile.total_exercises = total_exercises
+            profile.correct_rate = correct_rate
+            profile.weak_points = weak_points
+            await self.db.flush()
 
-        # TODO: 后续迭代中从 summaries / exercises / exercise_attempts 表聚合真实数据
         return {
-            "total_study_time": profile.total_study_time if profile else 0,
-            "total_exercises": profile.total_exercises if profile else 0,
-            "correct_rate": profile.correct_rate if profile else 0.0,
-            "recent_summaries": [],
-            "recent_exercises": [],
-            "recommendations": [],
-            "weak_points": profile.weak_points if profile else [],
+            "total_study_time": total_study_time,
+            "total_exercises": total_exercises,
+            "correct_rate": correct_rate,
+            "recent_summaries": recent_summaries,
+            "recent_exercises": recent_exercises,
+            "recommendations": recommendations,
+            "weak_points": weak_points,
         }
