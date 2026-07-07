@@ -112,6 +112,49 @@ async def change_password(
 
 
 # ================================================================
+# GET /users/theme-preferences — 获取主题偏好
+# ================================================================
+@router.get("/theme-preferences")
+async def get_theme_preferences(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取当前用户的主题偏好（护眼模式、字体大小、暗色模式等）"""
+    prefs = current_user.theme_preferences or {}
+    return make_response(data={
+        "font_size": prefs.get("fontSize", "medium"),
+        "theme_mode": prefs.get("themeMode", "light"),
+        "color_scheme": prefs.get("colorScheme", "eye-care"),
+        "reading_mode": prefs.get("readingMode", False),
+    })
+
+
+# ================================================================
+# PUT /users/theme-preferences — 保存主题偏好
+# ================================================================
+@router.put("/theme-preferences")
+async def save_theme_preferences(
+    prefs: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    保存用户主题偏好。
+
+    请求体示例：
+    {"fontSize": "large", "themeMode": "dark", "colorScheme": "eye-care", "readingMode": false}
+    """
+    current_user.theme_preferences = {
+        "fontSize": prefs.get("fontSize", "medium"),
+        "themeMode": prefs.get("themeMode", "light"),
+        "colorScheme": prefs.get("colorScheme", "eye-care"),
+        "readingMode": prefs.get("readingMode", False),
+    }
+    await db.flush()
+    return make_response(data=current_user.theme_preferences, message="主题偏好已保存")
+
+
+# ================================================================
 # GET /users/dashboard — 学习仪表盘
 # ================================================================
 @router.get("/dashboard")
