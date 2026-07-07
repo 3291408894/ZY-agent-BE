@@ -54,6 +54,7 @@ class UserService:
             email=req.email,
             phone=req.phone,
             hashed_password=hash_password(req.password),
+            role=req.role if req.role in ("student", "teacher", "admin") else "student",
             grade=req.grade,
             subjects=req.subjects,
         )
@@ -100,7 +101,7 @@ class UserService:
             return None
 
         user_id = str(user.id)
-        access_token = create_access_token(user_id)
+        access_token = create_access_token(user_id, extra_claims={"role": user.role})
         refresh_token = create_refresh_token(user_id)
 
         return {
@@ -113,6 +114,7 @@ class UserService:
                 "email": user.email,
                 "phone": user.phone,
                 "nickname": user.nickname,
+                "role": user.role,
                 "grade": user.grade,
                 "subjects": user.subjects or [],
                 "textbook_version": user.textbook_version,

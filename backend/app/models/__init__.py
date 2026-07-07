@@ -11,6 +11,7 @@ from app.models.file import UploadedFile
 from app.models.exercise import Exercise, ExerciseAttempt
 from app.models.knowledge import KnowledgeGraph
 from app.models.summary import Summary
+from app.models.teaching_resource import TeachingResource, ResourceFavorite, ResourceDownloadLog
 
 __all__ = [
     "Base",
@@ -23,4 +24,7 @@ __all__ = [
     "Exercise",
     "ExerciseAttempt",
     "KnowledgeGraph",
+    "TeachingResource",
+    "ResourceFavorite",
+    "ResourceDownloadLog",
 ]

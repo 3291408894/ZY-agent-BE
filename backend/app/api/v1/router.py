@@ -16,6 +16,11 @@ from app.api.v1.exercises import router as exercises_router
 from app.api.v1.files import router as files_router
 from app.api.v1.knowledge import router as knowledge_router
 
+# ============================================================
+# 教师端路由 (功能模块)
+# ============================================================
+from app.api.v1.teacher.resources import router as teacher_resources_router
+
 api_router = APIRouter(prefix="/api/v1")
 
 # --- 认证模块 (PBI_01) ✅ 已激活 ---
@@ -38,6 +43,9 @@ api_router.include_router(files_router, prefix="/files", tags=["文件管理"])
 
 # --- 知识图谱模块 (PBI_11) ✅ 已激活 ---
 api_router.include_router(knowledge_router, prefix="/knowledge", tags=["知识图谱"])
+
+# --- 教师端 — 教学资源库 (功能3) ✅ 已激活 ---
+api_router.include_router(teacher_resources_router, prefix="/teacher/resources", tags=["教师-教学资源库"])
 
 
 # ============================================================

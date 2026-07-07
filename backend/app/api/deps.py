@@ -76,6 +76,22 @@ async def get_current_user(
     return user
 
 
+async def get_current_teacher(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """要求当前用户为教师角色，否则返回 403"""
+    if current_user.role not in ("teacher", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": ErrorCode.FORBIDDEN,
+                "message": "仅教师可访问此功能",
+                "detail": None,
+            },
+        )
+    return current_user
+
+
 async def get_optional_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: AsyncSession = Depends(get_db),

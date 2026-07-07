@@ -16,6 +16,7 @@ class RegisterReq(BaseModel):
     password: str = Field(..., min_length=8, max_length=64, description="密码，8-64 位")
     grade: str = Field(..., description="年级，如'七年级'")
     subjects: list[str] = Field(default_factory=list, description="学科偏好列表")
+    role: str = Field(default="student", description="角色: student/teacher/admin")
 
     @model_validator(mode="after")
     def check_email_or_phone(self):
