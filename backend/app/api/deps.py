@@ -106,3 +106,19 @@ async def get_optional_user(
         return await db.get(User, payload["sub"])
     except Exception:
         return None
+
+
+async def get_current_teacher(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """教师/管理员鉴权 — 仅教师和管理员可访问"""
+    if current_user.role not in ("teacher", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": 40301,
+                "message": "仅教师可访问此功能",
+                "detail": None,
+            },
+        )
+    return current_user
