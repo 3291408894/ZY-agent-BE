@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `subjects`          JSON            NOT NULL DEFAULT ('[]')             COMMENT '学科偏好列表，如 ["语文","数学"]',
     `textbook_version`  VARCHAR(64)     NULL                                COMMENT '教材版本，如"部编版"',
     `avatar_url`        VARCHAR(512)    NULL                                COMMENT '头像 URL',
+    `theme_preferences` JSON            NOT NULL DEFAULT ('{}')             COMMENT '主题偏好设置（护眼模式等）',
     `is_active`         TINYINT(1)      NOT NULL DEFAULT 1                  COMMENT '账户启用状态: 1=启用 0=禁用',
     `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '注册时间',
     `updated_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -405,13 +406,13 @@ CREATE TABLE IF NOT EXISTS `lesson_plans` (
                                         ON UPDATE CURRENT_TIMESTAMP         COMMENT '最近更新时间',
 
     PRIMARY KEY (`id`),
-    INDEX `idx_lp_user_id` (`user_id`),
-    INDEX `idx_lp_subject` (`subject`),
-    INDEX `idx_lp_grade` (`grade`),
-    INDEX `idx_lp_created_at` (`created_at`),
-    CONSTRAINT `fk_lp_user` FOREIGN KEY (`user_id`)
+    INDEX `idx_lsp_user_id` (`user_id`),
+    INDEX `idx_lsp_subject` (`subject`),
+    INDEX `idx_lsp_grade` (`grade`),
+    INDEX `idx_lsp_created_at` (`created_at`),
+    CONSTRAINT `fk_lsp_user` FOREIGN KEY (`user_id`)
         REFERENCES `users` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `chk_lp_status` CHECK (`status` IN ('generating', 'completed', 'failed'))
+    CONSTRAINT `chk_lsp_status` CHECK (`status` IN ('generating', 'completed', 'failed'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   ROW_FORMAT=DYNAMIC
   COMMENT='智能教案生成记录表';
@@ -793,24 +794,12 @@ VALUES (
 );
 
 -- ============================================================
--- 存量数据库升级语句（v2.0 → v3.0）
--- 说明: 如果数据库已按 v2.0 建表，执行以下 ALTER 完成升级
---       CREATE TABLE 已使用 IF NOT EXISTS，新库无需执行这些 ALTER
+-- 存量数据库升级参考（如需从旧版升级，请手动执行以下语句）
+-- 新库无需执行 — CREATE TABLE 已包含最新结构
 -- ============================================================
-
--- users 表新增 role 列
-ALTER TABLE `users`
-    ADD COLUMN `role` VARCHAR(20) NOT NULL DEFAULT 'student'
-        COMMENT '用户角色: student-学生, teacher-教师, admin-管理员'
-        AFTER `hashed_password`;
-
--- users 表新增 role 索引
+-- ALTER TABLE `users` ADD COLUMN `theme_preferences` JSON NOT NULL DEFAULT ('{}') COMMENT '主题偏好' AFTER `avatar_url`;
+-- ALTER TABLE `users` ADD COLUMN `role` VARCHAR(20) NOT NULL DEFAULT 'student' COMMENT '角色' AFTER `hashed_password`;
 -- CREATE INDEX `idx_users_role` ON `users` (`role`);
-
--- users 表新增 theme_preferences 列（v2.1 护眼模式）
-ALTER TABLE `users`
-    ADD COLUMN `theme_preferences` JSON NOT NULL DEFAULT ('{}')
-        AFTER `avatar_url`;
 
 
 -- ============================================================
