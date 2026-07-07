@@ -9,7 +9,7 @@ from fastapi import APIRouter
 # ============================================================
 # from app.api.v1.auth import router as auth_router
 # from app.api.v1.users import router as users_router
-# from app.api.v1.agent import router as agent_router
+from app.api.v1.agent import router as agent_router
 # from app.api.v1.summary import router as summary_router
 # from app.api.v1.exercises import router as exercises_router
 from app.api.v1.files import router as files_router
@@ -24,7 +24,7 @@ api_router = APIRouter(prefix="/api/v1")
 # api_router.include_router(users_router, prefix="/users", tags=["用户"])
 
 # --- AI Agent 模块 (PBI_04, PBI_12) ---
-# api_router.include_router(agent_router, prefix="/agent", tags=["AI Agent"])
+api_router.include_router(agent_router, prefix="/agent", tags=["AI Agent"])
 
 # --- 课文总结模块 (PBI_06) ---
 # api_router.include_router(summary_router, prefix="/summaries", tags=["课文总结"])
