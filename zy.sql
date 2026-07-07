@@ -484,3 +484,7 @@ VALUES (
     NULL,
     0
 );
+
+ALTER TABLE `users`
+    ADD COLUMN `theme_preferences` JSON NOT NULL DEFAULT ('{}')
+        AFTER `avatar_url`;
