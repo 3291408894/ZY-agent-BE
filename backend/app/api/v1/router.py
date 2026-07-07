@@ -20,6 +20,14 @@ from app.api.v1.knowledge import router as knowledge_router
 # 教师端路由 (功能模块)
 # ============================================================
 from app.api.v1.teacher.resources import router as teacher_resources_router
+from app.api.v1.teacher.classes import router as teacher_classes_router
+from app.api.v1.teacher.assignments import router as teacher_assignments_router
+
+# ============================================================
+# 学生端路由 (师生联动模块)
+# ============================================================
+from app.api.v1.student.classes import router as student_classes_router
+from app.api.v1.student.assignments import router as student_assignments_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -46,6 +54,18 @@ api_router.include_router(knowledge_router, prefix="/knowledge", tags=["知识�
 
 # --- 教师端 — 教学资源库 (功能3) ✅ 已激活 ---
 api_router.include_router(teacher_resources_router, prefix="/teacher/resources", tags=["教师-教学资源库"])
+
+# --- 教师端 — 班级管理 (功能4) ✅ 已激活 ---
+api_router.include_router(teacher_classes_router, prefix="/teacher/classes", tags=["教师-班级管理"])
+
+# --- 教师端 — 作业管理 (功能5) ✅ 已激活 ---
+api_router.include_router(teacher_assignments_router, prefix="/teacher/assignments", tags=["教师-作业管理"])
+
+# --- 学生端 — 班级 (功能4) ✅ 已激活 ---
+api_router.include_router(student_classes_router, prefix="/student/classes", tags=["学生-班级"])
+
+# --- 学生端 — 作业 (功能5) ✅ 已激活 ---
+api_router.include_router(student_assignments_router, prefix="/student/assignments", tags=["学生-作业"])
 
 
 # ============================================================

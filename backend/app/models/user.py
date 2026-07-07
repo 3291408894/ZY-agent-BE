@@ -48,6 +48,15 @@ class User(Base):
     teaching_resources: Mapped[list["TeachingResource"]] = relationship(back_populates="uploader")
     resource_favorites: Mapped[list["ResourceFavorite"]] = relationship(back_populates="user")
     resource_download_logs: Mapped[list["ResourceDownloadLog"]] = relationship(back_populates="user")
+    classes: Mapped[list["Class"]] = relationship(back_populates="teacher")
+    class_memberships: Mapped[list["ClassStudent"]] = relationship(back_populates="student")
+    assignments: Mapped[list["Assignment"]] = relationship(back_populates="teacher")
+    submissions: Mapped[list["AssignmentSubmission"]] = relationship(
+        back_populates="student", foreign_keys="AssignmentSubmission.student_id"
+    )
+    graded_submissions: Mapped[list["AssignmentSubmission"]] = relationship(
+        back_populates="grading_teacher", foreign_keys="AssignmentSubmission.teacher_id"
+    )
 
 
 class LearningProfile(Base):
