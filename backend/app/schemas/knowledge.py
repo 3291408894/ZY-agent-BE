@@ -38,4 +38,6 @@ class KnowledgeGraphItem(BaseModel):
     id: str
     title: str
     source_type: str
+    node_count: int = 0
+    edge_count: int = 0
     created_at: datetime

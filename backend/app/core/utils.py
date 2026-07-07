@@ -22,8 +22,12 @@ def extract_json(text: str) -> str | None:
     match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
     if match:
         return match.group(1).strip()
-    # 尝试直接匹配 JSON 数组（非贪婪）
-    match = re.search(r"\[[\s\S]*?\]", text)
+    # 尝试直接匹配 JSON 对象
+    match = re.search(r"\{[\s\S]*\}", text)
+    if match:
+        return match.group(0)
+    # 尝试直接匹配 JSON 数组
+    match = re.search(r"\[[\s\S]*\]", text)
     if match:
         return match.group(0)
     return None
