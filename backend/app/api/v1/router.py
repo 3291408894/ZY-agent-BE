@@ -67,6 +67,11 @@ api_router.include_router(student_classes_router, prefix="/student/classes", tag
 # --- 学生端 — 作业 (功能5) 已激活 ---
 api_router.include_router(student_assignments_router, prefix="/student/assignments", tags=["学生-作业"])
 
+# --- 智能教案生成 (PBI_LP) 已激活 ---
+from app.api.v1.lesson_plan import router as lesson_plan_router
+
+api_router.include_router(lesson_plan_router, prefix="/lesson-plans", tags=["教案生成"])
+
 
 # ============================================================
 # 健康检查（基础层自带）

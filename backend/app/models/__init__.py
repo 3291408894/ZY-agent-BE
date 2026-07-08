@@ -14,6 +14,7 @@ from app.models.summary import Summary
 from app.models.teaching_resource import TeachingResource, ResourceFavorite, ResourceDownloadLog
 from app.models.classes import Class, ClassStudent
 from app.models.assignment import Assignment, AssignmentSubmission
+from app.models.lesson_plan import LessonPlan
 
 __all__ = [
     "Base",
@@ -33,4 +34,5 @@ __all__ = [
     "ClassStudent",
     "Assignment",
     "AssignmentSubmission",
+    "LessonPlan",
 ]
