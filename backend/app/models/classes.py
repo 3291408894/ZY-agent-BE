@@ -56,6 +56,7 @@ class Class(Base):
     teacher: Mapped["User"] = relationship(back_populates="classes")
     students_rel: Mapped[list["ClassStudent"]] = relationship(back_populates="class_", cascade="all, delete-orphan")
     assignments: Mapped[list["Assignment"]] = relationship(back_populates="class_", cascade="all, delete-orphan")
+    shared_resources: Mapped[list["ClassResource"]] = relationship(back_populates="class_", cascade="all, delete-orphan")
 
 
 class ClassStudent(Base):

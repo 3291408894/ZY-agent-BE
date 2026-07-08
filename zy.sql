@@ -7,7 +7,7 @@
 -- 引擎:    MySQL 8.0+ / InnoDB
 -- 字符集:  utf8mb4 / utf8mb4_unicode_ci
 -- ============================================================
--- 表清单 (共 21 张):
+-- 表清单 (共 22 张):
 --   01. users                    用户表（含角色字段）
 --   02. learning_profiles        学习档案表
 --   03. refresh_tokens           JWT 刷新令牌表
@@ -30,6 +30,8 @@
 --   19. class_students           班级学生关联表
 --   20. assignments              作业表
 --   21. assignment_submissions   作业提交表
+--   === v3.2 新增 ===
+--   22. class_resources          班级资源分享表
 -- ============================================================
 
 
@@ -691,6 +693,34 @@ CREATE TABLE IF NOT EXISTS `assignment_submissions` (
 
 
 -- ============================================================
+-- 22. class_resources — 班级资源分享表 (教师端 / 师生联动)
+-- ============================================================
+-- 说明: 教师将教学资源分享到班级，学生可在班级中查看和下载
+--       class_id + resource_id 联合唯一，同一资源不可重复分享到同一班级
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `class_resources` (
+    `id`                CHAR(36)        NOT NULL                            COMMENT '分享记录ID (UUID v4)',
+    `class_id`          CHAR(36)        NOT NULL                            COMMENT '班级ID',
+    `resource_id`       CHAR(36)        NOT NULL                            COMMENT '教学资源ID',
+    `shared_by`         CHAR(36)        NOT NULL                            COMMENT '分享教师ID',
+    `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '分享时间',
+
+    PRIMARY KEY (`id`),
+    UNIQUE INDEX `uk_cr_class_resource` (`class_id`, `resource_id`),
+    INDEX `idx_cr_class_id` (`class_id`),
+    INDEX `idx_cr_resource_id` (`resource_id`),
+    CONSTRAINT `fk_cr_class` FOREIGN KEY (`class_id`)
+        REFERENCES `classes` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_cr_resource` FOREIGN KEY (`resource_id`)
+        REFERENCES `teaching_resources` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_cr_teacher` FOREIGN KEY (`shared_by`)
+        REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  ROW_FORMAT=DYNAMIC
+  COMMENT='班级资源分享表';
+
+
+-- ============================================================
 -- 种子数据 — 开发/测试用
 -- ============================================================
 -- 密码均为: Test123456 (bcrypt 哈希)
@@ -849,7 +879,7 @@ VALUES (
 
 
 -- ============================================================
--- 执行完毕 — 共 21 张表 + 种子数据
+-- 执行完毕 — 共 22 张表 + 种子数据
 -- 对应 PBI: 01, 04, 05, 06, 08, 09, 10, 11, 12 + 教师端五大功能模块
 -- ============================================================
 

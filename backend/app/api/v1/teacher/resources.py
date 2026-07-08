@@ -18,6 +18,8 @@ from app.schemas.teaching_resource import (
     ResourceItem,
     ResourceUploadResp,
 )
+from app.schemas.class_resource import SendToClassRequest
+from app.services.class_resource_service import ClassResourceService
 from app.services.teaching_resource_service import TeachingResourceService
 
 router = APIRouter()
@@ -297,6 +299,44 @@ async def delete_resource(
         )
     await db.commit()
     return make_response(message="删除成功")
+
+
+# ============================================================
+# 发送到班级
+# ============================================================
+
+@router.post("/{resource_id}/send-to-class", summary="发送资源到班级")
+async def send_resource_to_classes(
+    resource_id: str,
+    body: SendToClassRequest,
+    current_user: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    """将教学资源发送到指定班级（可多选），仅资源上传者可操作"""
+    service = ClassResourceService(db)
+    try:
+        result = await service.send_to_classes(
+            resource_id=resource_id,
+            class_ids=body.class_ids,
+            teacher_id=current_user.id,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": ErrorCode.PARAM_INVALID, "message": str(e), "detail": None},
+        )
+
+    await db.commit()
+
+    msg_parts = []
+    if result["success_count"] > 0:
+        msg_parts.append(f"已发送到 {result['success_count']} 个班级")
+    if result["skipped"]:
+        msg_parts.append(f"{len(result['skipped'])} 个班级已分享过（{', '.join(result['skipped'])}）")
+    if result["errors"]:
+        msg_parts.append(f"{len(result['errors'])} 个班级发送失败")
+
+    return make_response(data=result, message="；".join(msg_parts) if msg_parts else "操作完成")
 
 
 # ============================================================

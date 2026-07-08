@@ -79,6 +79,9 @@ class TeachingResource(Base):
     download_logs: Mapped[list["ResourceDownloadLog"]] = relationship(
         back_populates="resource", cascade="all, delete-orphan"
     )
+    shared_classes: Mapped[list["ClassResource"]] = relationship(
+        back_populates="resource", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_tr_created", "created_at"),

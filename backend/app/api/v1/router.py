@@ -29,6 +29,7 @@ from app.api.v1.teacher.exam_paper import router as teacher_exam_paper_router
 # ============================================================
 from app.api.v1.student.classes import router as student_classes_router
 from app.api.v1.student.assignments import router as student_assignments_router
+from app.api.v1.student.resources import router as student_resources_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -70,6 +71,9 @@ api_router.include_router(student_classes_router, prefix="/student/classes", tag
 
 # --- 学生端 — 作业 (功能5) ✅ 已激活 ---
 api_router.include_router(student_assignments_router, prefix="/student/assignments", tags=["学生-作业"])
+
+# --- 学生端 — 班级资源 √ 新增 ---
+api_router.include_router(student_resources_router, prefix="/student", tags=["学生-班级资源"])
 
 # --- 智能教案生成 (PBI_LP) ✅ 已激活 ---
 from app.api.v1.lesson_plan import router as lesson_plan_router

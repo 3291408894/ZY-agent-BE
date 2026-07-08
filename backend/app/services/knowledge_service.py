@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.llm_client import llm_client
 from app.core.utils import extract_json
 from app.models.knowledge import KnowledgeGraph
+from app.models.file import UploadedFile
 
 KNOWLEDGE_GRAPH_SYSTEM_PROMPT = """你是一位 K12 教育专家，擅长梳理学科知识体系。
 
@@ -55,8 +56,17 @@ KNOWLEDGE_GRAPH_USER_TEMPLATE = """请为以下内容生成知识图谱：
 
 学科/章节：{source}
 生成类型：{source_type}
+{extra_context}
 
 请梳理出核心知识点及其关联关系，节点数量在 8-20 个之间。"""
+
+KNOWLEDGE_GRAPH_FILE_TEMPLATE = """请根据以下文件内容生成知识图谱：
+
+文件名：{filename}
+文件内容摘要：
+{file_content}
+
+请从上述文件内容中提取核心知识点及其关联关系，构建知识图谱。节点数量在 8-20 个之间。"""
 
 
 class KnowledgeService:
@@ -88,10 +98,35 @@ class KnowledgeService:
         返回:
             持久化后的 KnowledgeGraph 对象
         """
-        user_prompt = KNOWLEDGE_GRAPH_USER_TEMPLATE.format(
-            source=source,
-            source_type=source_type,
-        )
+        title = source
+        extra_context = ""
+
+        # 当来源为文件时，读取文件内容作为知识图谱构建依据
+        if source_type == "file" and file_id:
+            file_record = await self.db.get(UploadedFile, file_id)
+            if file_record and file_record.user_id == user_id:
+                title = file_record.filename
+                file_content = file_record.parsed_content or ""
+                # 如果文件内容过长，截取前 8000 字符
+                if len(file_content) > 8000:
+                    file_content = file_content[:8000] + "\n...(内容已截断)"
+                user_prompt = KNOWLEDGE_GRAPH_FILE_TEMPLATE.format(
+                    filename=file_record.filename,
+                    file_content=file_content or "（文件内容为空或尚未解析完成）",
+                )
+            else:
+                # 文件不存在或不属于当前用户，回退到普通模式
+                user_prompt = KNOWLEDGE_GRAPH_USER_TEMPLATE.format(
+                    source=source,
+                    source_type=source_type,
+                    extra_context="",
+                )
+        else:
+            user_prompt = KNOWLEDGE_GRAPH_USER_TEMPLATE.format(
+                source=source,
+                source_type=source_type,
+                extra_context=extra_context,
+            )
 
         messages = [
             {"role": "system", "content": KNOWLEDGE_GRAPH_SYSTEM_PROMPT},
@@ -112,7 +147,7 @@ class KnowledgeService:
             # 如果 LLM 返回的是数组而非对象，包装为对象
             if isinstance(data, list):
                 data = {
-                    "title": source,
+                    "title": title,
                     "nodes": data,
                     "edges": [],
                 }
@@ -120,12 +155,12 @@ class KnowledgeService:
             logger.error(f"LLM 知识图谱生成失败 | user={user_id} | error={e}")
             # 回退：生成空图谱
             data = {
-                "title": source,
+                "title": title,
                 "nodes": [],
                 "edges": [],
             }
 
-        title = data.get("title", source)
+        title = data.get("title", title)
         nodes = data.get("nodes", [])
         edges = data.get("edges", [])
 

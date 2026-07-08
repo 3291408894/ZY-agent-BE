@@ -10,6 +10,7 @@ from app.models.user import User
 from app.schemas.classes import ClassCreate, ClassUpdate
 from app.schemas.common import ErrorCode, make_paginated_response, make_response
 from app.services.class_service import ClassService
+from app.services.class_resource_service import ClassResourceService
 
 router = APIRouter()
 
@@ -172,3 +173,31 @@ async def archive_class(
         )
     await db.commit()
     return make_response(message="班级已归档")
+
+
+# ============================================================
+# 班级资源列表
+# ============================================================
+
+@router.get("/{class_id}/resources", summary="班级资源列表")
+async def get_class_resources(
+    class_id: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    current_user: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    """教师查看班级已分享的资源列表"""
+    service = ClassResourceService(db)
+    try:
+        items, total = await service.list_class_resources(
+            class_id=class_id,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": str(e), "detail": None},
+        )
+    return make_paginated_response(items=items, total=total, page=page, page_size=page_size)
