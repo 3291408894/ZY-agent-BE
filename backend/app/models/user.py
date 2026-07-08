@@ -58,6 +58,7 @@ class User(Base):
         back_populates="grading_teacher", foreign_keys="AssignmentSubmission.teacher_id"
     )
     lesson_plans: Mapped[list["LessonPlan"]] = relationship(back_populates="user")
+    exam_papers: Mapped[list["ExamPaper"]] = relationship(back_populates="user")
 
 
 class LearningProfile(Base):

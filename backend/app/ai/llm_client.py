@@ -32,7 +32,7 @@ class LLMClient:
         max_tokens: int = 4096,
     ) -> str:
         """非流式对话 — 返回完整回复"""
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=180) as client:
             resp = await client.post(
                 f"{self.base_url}/chat/completions",
                 headers=self._headers,

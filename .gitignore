@@ -1,4 +1,13 @@
-backend/__pycache__/
+__pycache__/
 **/__pycache__/
-**/*.pyc
-backend/nul
+*.pyc
+*.pyo
+.env
+*.db
+uploads/
+.venv/
+venv/
+.idea/
+*.egg-info/
+dist/
+build/

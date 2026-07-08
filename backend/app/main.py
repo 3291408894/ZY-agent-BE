@@ -24,6 +24,15 @@ from app.schemas.common import ErrorCode
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     logger.info(f"🚀 {settings.APP_NAME} API 启动中...")
+
+    # SQLite: 自动建表
+    if "sqlite" in settings.DATABASE_URL:
+        from app.core.database import engine, Base
+        import app.models  # noqa: F401 — 触发所有模型注册
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("SQLite 数据库表已就绪")
+
     yield
     # 关闭时：释放 Redis 连接
     await close_redis()
