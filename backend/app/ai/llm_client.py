@@ -67,7 +67,14 @@ class LLMClient:
                     "stream": True,
                 },
             ) as resp:
-                resp.raise_for_status()
+                if resp.status_code >= 400:
+                    error_body = ""
+                    async for chunk in resp.aiter_text():
+                        error_body += chunk
+                        if len(error_body) > 500:
+                            break
+                    logger.error(f"LLM API 返回错误 HTTP {resp.status_code}: {error_body[:300]}")
+                    raise RuntimeError(f"AI 服务返回错误 (HTTP {resp.status_code})。请检查 LLM_API_KEY 是否正确且未过期。")
                 async for line in resp.aiter_lines():
                     if line.startswith("data: "):
                         chunk = line[6:]

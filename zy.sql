@@ -1,8 +1,8 @@
 -- ============================================================
 -- 智翼（ZhiYi）AI 学习助手平台 — MySQL 完整建表脚本
 -- ============================================================
--- 版本:    v3.0
--- 日期:    2026-07-07
+-- 版本:    v3.1
+-- 日期:    2026-07-08
 -- 数据库:  zhiyi
 -- 引擎:    MySQL 8.0+ / InnoDB
 -- 字符集:  utf8mb4 / utf8mb4_unicode_ci
@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS `users` (
     `subjects`          JSON            NOT NULL DEFAULT ('[]')             COMMENT '学科偏好列表，如 ["语文","数学"]',
     `textbook_version`  VARCHAR(64)     NULL                                COMMENT '教材版本，如"部编版"',
     `avatar_url`        VARCHAR(512)    NULL                                COMMENT '头像 URL',
+    `school_name`       VARCHAR(128)    NULL                                COMMENT '教师所属学校',
+    `bio`               VARCHAR(512)    NULL                                COMMENT '教师简介/个人介绍',
     `theme_preferences` JSON            NOT NULL DEFAULT ('{}')             COMMENT '主题偏好设置（护眼模式等）',
     `is_active`         TINYINT(1)      NOT NULL DEFAULT 1                  COMMENT '账户启用状态: 1=启用 0=禁用',
     `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '注册时间',
@@ -853,3 +855,14 @@ VALUES (
 -- 执行完毕 — 共 21 张表 + 种子数据
 -- 对应 PBI: 01, 04, 05, 06, 08, 09, 10, 11, 12 + 教师端五大功能模块
 -- ============================================================
+
+
+-- ============================================================
+-- 迁移脚本 (v3.0 → v3.1)：为已有数据库追加新字段
+-- 如果已通过 CREATE TABLE 创建（新库），无需执行以下语句
+-- ============================================================
+
+-- users 表新增教师信息字段（注册流程身份选择功能）
+ALTER TABLE `users`
+    ADD COLUMN IF NOT EXISTS `school_name` VARCHAR(128) NULL COMMENT '教师所属学校' AFTER `avatar_url`,
+    ADD COLUMN IF NOT EXISTS `bio`         VARCHAR(512) NULL COMMENT '教师简介/个人介绍' AFTER `school_name`;

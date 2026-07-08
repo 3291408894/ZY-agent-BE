@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.config import settings
 from app.models.user import User
 from app.schemas.lesson_plan import (
     GenerateLessonPlanRequest,
@@ -34,6 +35,17 @@ async def generate_lesson_plan(
     - done:            教案生成完成（含 lesson_plan_id 和 title）
     - error:           出错信息
     """
+    # 检查 LLM 配置
+    if not settings.LLM_API_KEY:
+        async def error_stream():
+            import json
+            yield f"data: {json.dumps({'type': 'error', 'message': 'AI 服务未配置。请在 .env 文件中设置 LLM_API_KEY'})}\n\n"
+        return StreamingResponse(
+            error_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+        )
+
     service = LessonPlanService(db)
 
     async def event_stream():

@@ -45,6 +45,22 @@ class LessonPlanService:
         SSE 流式生成教案。
         每个 yield 返回一行 SSE 格式的 JSON 字符串（不含 'data: ' 前缀）。
         """
+        try:
+            async for event in self._generate_stream_impl(request, user_id):
+                yield event
+        except Exception as e:
+            logger.error(f"教案生成异常 | user={user_id} | error={e}")
+            yield sse_json({"type": "error", "message": f"教案生成服务异常: {str(e)}"})
+
+    async def _generate_stream_impl(
+        self,
+        request: GenerateLessonPlanRequest,
+        user_id: str,
+    ) -> AsyncIterator[str]:
+        """
+        SSE 流式生成教案实现。
+        每个 yield 返回一行 SSE 格式的 JSON 字符串（不含 'data: ' 前缀）。
+        """
         # 1. 构建多课时扩展内容
         extra_hours_text = ""
         if request.class_hours > 1:

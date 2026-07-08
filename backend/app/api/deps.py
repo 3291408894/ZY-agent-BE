@@ -1,11 +1,12 @@
 """
-API 依赖注入 — 数据库会话、当前用户、权限校验
+API 依赖注入 — 数据库会话、当前用户、权限校验、LLM 配置检查
 """
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.security import decode_token
 from app.models.user import User
@@ -106,3 +107,16 @@ async def get_optional_user(
         return await db.get(User, payload["sub"])
     except Exception:
         return None
+
+
+async def check_llm_configured():
+    """检查 LLM API Key 是否已配置 """
+    if not settings.LLM_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": ErrorCode.LLM_SERVICE_ERROR,
+                "message": "AI 服务未配置。请在 .env 文件中设置 LLM_API_KEY（OpenAI / 兼容 API 密钥）",
+                "detail": None,
+            },
+        )

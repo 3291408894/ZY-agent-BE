@@ -55,8 +55,12 @@ class UserService:
             phone=req.phone,
             hashed_password=hash_password(req.password),
             role=req.role if req.role in ("student", "teacher", "admin") else "student",
+            nickname=req.nickname or ("老师" if req.role == "teacher" else "同学"),
             grade=req.grade,
             subjects=req.subjects,
+            textbook_version=req.textbook_version,
+            school_name=req.school_name,
+            bio=req.bio,
         )
         self.db.add(user)
         await self.db.flush()
@@ -119,6 +123,8 @@ class UserService:
                 "subjects": user.subjects or [],
                 "textbook_version": user.textbook_version,
                 "avatar_url": user.avatar_url,
+                "school_name": user.school_name,
+                "bio": user.bio,
             },
         }
 

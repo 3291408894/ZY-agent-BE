@@ -14,9 +14,16 @@ class RegisterReq(BaseModel):
     email: EmailStr | None = None
     phone: str | None = None
     password: str = Field(..., min_length=8, max_length=64, description="密码，8-64 位")
-    grade: str = Field(..., description="年级，如'七年级'")
-    subjects: list[str] = Field(default_factory=list, description="学科偏好列表")
     role: str = Field(default="student", description="角色: student/teacher/admin")
+    # 学生特有字段
+    grade: str | None = Field(default=None, description="年级，如'七年级'")
+    subjects: list[str] = Field(default_factory=list, description="学科偏好列表")
+    textbook_version: str | None = Field(default=None, description="教材版本")
+    # 教师特有字段
+    school_name: str | None = Field(default=None, max_length=128, description="教师所在学校")
+    bio: str | None = Field(default=None, max_length=512, description="教师简介/个人介绍")
+    # 昵称（可选，注册时可先不填）
+    nickname: str | None = Field(default=None, max_length=64, description="昵称")
 
     @model_validator(mode="after")
     def check_email_or_phone(self):
@@ -110,6 +117,8 @@ class UpdateProfileReq(BaseModel):
     grade: str | None = None
     subjects: list[str] | None = None
     textbook_version: str | None = None
+    school_name: str | None = Field(default=None, max_length=128)
+    bio: str | None = Field(default=None, max_length=512)
 
 
 class UserProfileResp(BaseModel):
@@ -121,6 +130,9 @@ class UserProfileResp(BaseModel):
     subjects: list[str]
     textbook_version: str | None
     avatar_url: str | None
+    school_name: str | None
+    bio: str | None
+    role: str
     created_at: datetime
 
 

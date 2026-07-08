@@ -40,6 +40,9 @@ async def get_profile(
             "subjects": user.subjects or [],
             "textbook_version": user.textbook_version,
             "avatar_url": user.avatar_url,
+            "school_name": user.school_name,
+            "bio": user.bio,
+            "role": user.role,
             "created_at": user.created_at.isoformat(),
         }
     )

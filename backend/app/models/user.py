@@ -29,6 +29,8 @@ class User(Base):
     subjects: Mapped[list] = mapped_column(JSON, default=list)  # ["语文","数学"]
     textbook_version: Mapped[str] = mapped_column(String(64), nullable=True)  # "部编版"
     avatar_url: Mapped[str] = mapped_column(String(512), nullable=True)
+    school_name: Mapped[str] = mapped_column(String(128), nullable=True)  # 教师所属学校
+    bio: Mapped[str] = mapped_column(String(512), nullable=True)  # 教师简介/学生个性签名
     theme_preferences: Mapped[dict] = mapped_column(JSON, default=dict)  # {"fontSize":"medium","themeMode":"light","colorScheme":"eye-care","readingMode":false}
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
