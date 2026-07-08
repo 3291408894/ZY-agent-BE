@@ -9,6 +9,7 @@ from sqlalchemy import select, func, delete
 from loguru import logger
 
 from app.models.lesson_plan import LessonPlan
+from app.models.teaching_resource import TeachingResource
 from app.schemas.lesson_plan import (
     GenerateLessonPlanRequest,
     LessonPlanItem,
@@ -31,6 +32,60 @@ class LessonPlanService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    # ─────────────────────────────────────────────────────
+    # 辅助：获取教学资源库文件引用上下文
+    # ─────────────────────────────────────────────────────
+
+    async def _get_resource_context(self, resource_id: str) -> str:
+        """从教学资源库读取文件信息，构建注入 Prompt 的参考上下文"""
+        from sqlalchemy import select
+
+        stmt = select(TeachingResource).where(TeachingResource.id == resource_id)
+        result = await self.db.execute(stmt)
+        resource = result.scalar_one_or_none()
+
+        if not resource:
+            logger.warning(f"教案生成引用了不存在的资源 | resource_id={resource_id}")
+            return ""
+
+        lines = [
+            "\n---",
+            "## 参考教学资源",
+            f"- **资源标题**：{resource.title}",
+        ]
+        if resource.description:
+            lines.append(f"- **资源描述**：{resource.description}")
+        if resource.subject:
+            lines.append(f"- **所属学科**：{resource.subject}")
+        if resource.grade:
+            lines.append(f"- **适用年级**：{resource.grade}")
+        if resource.tags:
+            lines.append(f"- **标签**：{', '.join(resource.tags)}")
+        if resource.resource_type:
+            type_map = {"courseware": "课件", "exam_paper": "试卷", "lesson_plan": "教案", "other": "其他"}
+            lines.append(f"- **资源类型**：{type_map.get(resource.resource_type, resource.resource_type)}")
+
+        # 尝试读取文本文件内容
+        text_exts = {".txt", ".md", ".csv", ".json", ".html", ".xml", ".yaml", ".yml"}
+        ext = (resource.file_ext or "").lower()
+        if ext in text_exts:
+            try:
+                import os
+                file_path = resource.file_path
+                if os.path.exists(file_path):
+                    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                        content = f.read(8000)
+                    if content.strip():
+                        lines.append(f"\n### 文件内容预览（前8000字）\n```\n{content}\n```")
+                else:
+                    logger.warning(f"资源文件不存在 | path={file_path}")
+            except Exception as e:
+                logger.warning(f"读取资源文件内容失败 | resource_id={resource_id} | error={e}")
+
+        lines.append("\n---")
+        lines.append("**请结合以上参考教学资源设计教案。**")
+        return "\n".join(lines)
 
     # ─────────────────────────────────────────────────────
     # 核心：流式生成教案
@@ -76,6 +131,11 @@ class LessonPlanService:
         if request.requirements and request.requirements.strip():
             requirements_section = f"- **特殊要求**：{request.requirements.strip()}"
 
+        # 2.5 教学资源库文件引用
+        resource_context = ""
+        if request.resource_id:
+            resource_context = await self._get_resource_context(request.resource_id)
+
         # 3. 构建 Prompt
         user_prompt = LESSON_PLAN_TEMPLATE.format(
             subject=request.subject,
@@ -86,6 +146,7 @@ class LessonPlanService:
             teaching_objectives=request.teaching_objectives,
             requirements_section=requirements_section,
             extra_class_hours=extra_hours_text,
+            resource_context=resource_context,
         )
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},

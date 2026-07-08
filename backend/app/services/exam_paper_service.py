@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from app.models.exam_paper import ExamPaper
+from app.models.teaching_resource import TeachingResource
 from app.schemas.exam_paper import (
     ExamPaperGenerateRequest,
     ExamPaperItem,
@@ -42,6 +43,58 @@ class ExamPaperService:
         self.db = db
 
     # ─────────────────────────────────────────────────────
+    # 辅助：获取教学资源库文件引用上下文
+    # ─────────────────────────────────────────────────────
+
+    async def _get_resource_context(self, resource_id: str) -> str:
+        """从教学资源库读取文件信息，构建注入 Prompt 的参考上下文"""
+        stmt = select(TeachingResource).where(TeachingResource.id == resource_id)
+        result = await self.db.execute(stmt)
+        resource = result.scalar_one_or_none()
+
+        if not resource:
+            logger.warning(f"试卷生成引用了不存在的资源 | resource_id={resource_id}")
+            return ""
+
+        lines = [
+            "\n---",
+            "## 参考教学资源",
+            f"- **资源标题**：{resource.title}",
+        ]
+        if resource.description:
+            lines.append(f"- **资源描述**：{resource.description}")
+        if resource.subject:
+            lines.append(f"- **所属学科**：{resource.subject}")
+        if resource.grade:
+            lines.append(f"- **适用年级**：{resource.grade}")
+        if resource.tags:
+            lines.append(f"- **标签**：{', '.join(resource.tags)}")
+        if resource.resource_type:
+            type_map = {"courseware": "课件", "exam_paper": "试卷", "lesson_plan": "教案", "other": "其他"}
+            lines.append(f"- **资源类型**：{type_map.get(resource.resource_type, resource.resource_type)}")
+
+        # 尝试读取文本文件内容
+        text_exts = {".txt", ".md", ".csv", ".json", ".html", ".xml", ".yaml", ".yml"}
+        ext = (resource.file_ext or "").lower()
+        if ext in text_exts:
+            try:
+                import os
+                file_path = resource.file_path
+                if os.path.exists(file_path):
+                    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                        content = f.read(8000)
+                    if content.strip():
+                        lines.append(f"\n### 文件内容预览（前8000字）\n```\n{content}\n```")
+                else:
+                    logger.warning(f"资源文件不存在 | path={file_path}")
+            except Exception as e:
+                logger.warning(f"读取资源文件内容失败 | resource_id={resource_id} | error={e}")
+
+        lines.append("\n---")
+        lines.append("**请结合以上参考教学资源命题，确保试题内容与参考资料相关。**")
+        return "\n".join(lines)
+
+    # ─────────────────────────────────────────────────────
     # 核心：SSE 流式生成试卷
     # ─────────────────────────────────────────────────────
 
@@ -54,17 +107,22 @@ class ExamPaperService:
         SSE 流式生成试卷。
         每个 yield 返回一行 SSE 格式的 JSON 字符串（不含 'data: ' 前缀）。
         """
-        # 1. 构建 User Prompt
-        user_prompt = self._build_user_message(req)
+        # 1. 获取教学资源引用上下文
+        resource_context = ""
+        if req.resource_id:
+            resource_context = await self._get_resource_context(req.resource_id)
+
+        # 2. 构建 User Prompt
+        user_prompt = await self._build_user_message(req, resource_context)
         messages = [
             {"role": "system", "content": EXAM_PAPER_SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ]
 
-        # 2. 发送开始思考事件
+        # 3. 发送开始思考事件
         yield sse_json({"type": "thinking", "stage": "analyzing", "message": "正在分析试卷配置和要求..."})
 
-        # 3. 流式调用 LLM
+        # 4. 流式调用 LLM
         full_text = ""
         try:
             async for chunk in llm_client.chat_stream(
@@ -151,7 +209,7 @@ class ExamPaperService:
     # 构建 User Message
     # ─────────────────────────────────────────────────────
 
-    def _build_user_message(self, req: ExamPaperGenerateRequest) -> str:
+    async def _build_user_message(self, req: ExamPaperGenerateRequest, resource_context: str = "") -> str:
         """将题型分布转化为文本描述"""
         # 题型分布文本
         structure_lines = []
@@ -184,6 +242,7 @@ class ExamPaperService:
             hard_ratio=req.difficulty_ratio.get("hard", 20),
             subject_instruction=subject_instruction,
             focus_instruction=focus_text,
+            resource_context=resource_context,
         )
 
     # ─────────────────────────────────────────────────────

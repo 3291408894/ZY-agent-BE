@@ -59,6 +59,10 @@ class GenerateLessonPlanRequest(BaseModel):
         max_length=1000,
         description="特殊要求（可选）"
     )
+    resource_id: str | None = Field(
+        default=None,
+        description="关联的教学资源库文件ID（可选，选中后AI将参考该文件内容生成教案）"
+    )
 
 
 class LessonPlanListQuery(BaseModel):

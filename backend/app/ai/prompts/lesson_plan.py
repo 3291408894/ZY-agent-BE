@@ -28,6 +28,7 @@ LESSON_PLAN_TEMPLATE = """请根据以下信息，生成一份完整的课堂教
 - **课时安排**：{class_hours} 课时
 - **教学目标**：{teaching_objectives}
 {requirements_section}
+{resource_context}
 
 ---
 

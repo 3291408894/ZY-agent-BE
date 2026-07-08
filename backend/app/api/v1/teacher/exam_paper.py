@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_teacher, get_db
+from app.core.config import settings
 from app.models.user import User
 from app.schemas.common import ErrorCode, make_paginated_response, make_response
 from app.schemas.exam_paper import (
@@ -42,6 +43,17 @@ async def generate_exam_paper(
     - done:      生成完成（含 paper_id）
     - error:     出错信息
     """
+    # 检查 LLM 配置
+    if not settings.LLM_API_KEY:
+        import json
+        async def error_stream():
+            yield f"data: {json.dumps({'type': 'error', 'message': 'AI 服务未配置。请在 .env 文件中设置 LLM_API_KEY'})}\n\n"
+        return StreamingResponse(
+            error_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+        )
+
     service = ExamPaperService(db)
 
     async def event_stream():

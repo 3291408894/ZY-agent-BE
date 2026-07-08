@@ -391,30 +391,27 @@ CREATE TABLE IF NOT EXISTS `knowledge_graphs` (
 --       status 状态机: generating → completed / failed
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `lesson_plans` (
-    `id`                CHAR(36)        NOT NULL                            COMMENT '教案ID (UUID v4)',
-    `user_id`           CHAR(36)        NOT NULL                            COMMENT '所属教师ID',
-    `title`             VARCHAR(200)    NOT NULL                            COMMENT '教案标题',
-    `subject`           VARCHAR(50)     NOT NULL                            COMMENT '学科',
-    `grade`             VARCHAR(50)     NOT NULL                            COMMENT '年级',
-    `chapter`           VARCHAR(200)    NOT NULL                            COMMENT '章节名称',
-    `period_count`      INT             NOT NULL DEFAULT 1                  COMMENT '课时数',
-    `content`           JSON            NOT NULL                            COMMENT '教案内容JSON（教学目标/重难点/教学过程/板书设计/反思模板）',
-    `export_url`        VARCHAR(500)    NULL                                COMMENT '导出文件URL',
-    `export_format`     VARCHAR(20)     NULL                                COMMENT '导出格式: word / pdf',
-    `status`            VARCHAR(20)     NOT NULL DEFAULT 'completed'        COMMENT '状态: generating / completed / failed',
-    `error_message`     TEXT            NULL                                COMMENT '失败错误信息',
-    `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
-    `updated_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                        ON UPDATE CURRENT_TIMESTAMP         COMMENT '最近更新时间',
+    `id`                    CHAR(36)        NOT NULL                            COMMENT '教案ID (UUID v4)',
+    `user_id`               CHAR(36)        NOT NULL                            COMMENT '所属教师ID',
+    `title`                 VARCHAR(128)    NOT NULL DEFAULT '未命名教案'        COMMENT '教案标题（AI自动提取）',
+    `subject`               VARCHAR(32)     NOT NULL                            COMMENT '学科',
+    `grade`                 VARCHAR(16)     NOT NULL                            COMMENT '年级',
+    `textbook_version`      VARCHAR(64)     NOT NULL DEFAULT ''                 COMMENT '教材版本',
+    `unit_chapter`          VARCHAR(128)    NOT NULL DEFAULT ''                 COMMENT '单元/章节',
+    `class_hours`           INT             NOT NULL DEFAULT 1                  COMMENT '课时数',
+    `teaching_objectives`   TEXT            NULL                                COMMENT '用户输入的教学目标',
+    `requirements`          TEXT            NULL                                COMMENT '特殊要求',
+    `plan_content`          TEXT            NULL                                COMMENT 'AI生成的教案正文（Markdown）',
+    `sections`              JSON            NULL                                COMMENT '结构化分段信息',
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
 
     PRIMARY KEY (`id`),
-    INDEX `idx_lsp_user_id` (`user_id`),
-    INDEX `idx_lsp_subject` (`subject`),
-    INDEX `idx_lsp_grade` (`grade`),
-    INDEX `idx_lsp_created_at` (`created_at`),
-    CONSTRAINT `fk_lsp_user` FOREIGN KEY (`user_id`)
-        REFERENCES `users` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `chk_lsp_status` CHECK (`status` IN ('generating', 'completed', 'failed'))
+    INDEX `idx_lp_user` (`user_id`),
+    INDEX `idx_lp_subject` (`subject`),
+    INDEX `idx_lp_grade` (`grade`),
+    INDEX `idx_lp_created` (`created_at`),
+    CONSTRAINT `fk_lesson_plans_user` FOREIGN KEY (`user_id`)
+        REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   ROW_FORMAT=DYNAMIC
   COMMENT='智能教案生成记录表';

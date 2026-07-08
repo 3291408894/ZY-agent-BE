@@ -69,6 +69,10 @@ class ExamPaperGenerateRequest(BaseModel):
     focus_instruction: str | None = Field(
         default=None, max_length=500, description="补充说明/重点关注考点"
     )
+    resource_id: str | None = Field(
+        default=None,
+        description="关联的教学资源库文件ID（可选，选中后AI将参考该文件内容生成试卷）"
+    )
 
     @model_validator(mode="after")
     def validate_difficulty_ratio(self):
