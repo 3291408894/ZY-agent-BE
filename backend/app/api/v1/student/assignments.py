@@ -96,12 +96,7 @@ async def get_my_submission(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """查看我的提交和批改结果"""
+    """查看我的提交和批改结果（未提交时返回 data: null 而非报错）"""
     service = AssignmentService(db)
     submission = await service.get_my_submission(assignment_id, current_user.id)
-    if not submission:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "你尚未提交该作业", "detail": None},
-        )
-    return make_response(data=submission)
+    return make_response(data=submission, message="ok")
