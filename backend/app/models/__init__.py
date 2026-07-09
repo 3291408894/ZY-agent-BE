@@ -16,6 +16,7 @@ from app.models.classes import Class, ClassStudent
 from app.models.assignment import Assignment, AssignmentSubmission
 from app.models.lesson_plan import LessonPlan
 from app.models.exam_paper import ExamPaper
+from app.models.class_exam_paper import ClassExamPaper
 
 __all__ = [
     "Base",
@@ -37,4 +38,5 @@ __all__ = [
     "AssignmentSubmission",
     "LessonPlan",
     "ExamPaper",
+    "ClassExamPaper",
 ]
