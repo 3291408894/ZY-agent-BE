@@ -6,7 +6,7 @@ import json
 import asyncio
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -60,7 +60,7 @@ class AssignmentService:
         )
         self.db.add(assignment)
         await self.db.flush()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         return {
             "id": assignment.id,
             "class_id": assignment.class_id,
@@ -437,6 +437,7 @@ class AssignmentService:
         final_score = max(0, min(final_score, max_score))
 
         # 更新提交
+        was_already_graded = submission.status == "graded"
         submission.ai_feedback = {
             "total_score": final_score,
             "question_feedback": question_feedback,
@@ -446,9 +447,9 @@ class AssignmentService:
         submission.teacher_feedback = teacher_feedback
         submission.teacher_id = teacher_id
         submission.status = "graded"
-        submission.graded_at = datetime.utcnow()
+        submission.graded_at = datetime.now(timezone.utc)
 
-        if submission.status == "graded":
+        if not was_already_graded:
             assignment.graded_count = (assignment.graded_count or 0) + 1
 
         return {
@@ -533,7 +534,7 @@ class AssignmentService:
                 else:
                     # 纯客观题 → 直接确认，无需教师介入
                     submission.status = "graded"
-                    submission.graded_at = datetime.utcnow()
+                    submission.graded_at = datetime.now(timezone.utc)
                     assignment.graded_count = (assignment.graded_count or 0) + 1
                 results["success"] += 1
                 results["details"].append({
@@ -695,16 +696,58 @@ class AssignmentService:
         page_size: int = 20,
         status: str | None = None,
     ) -> tuple[list[dict], int]:
-        """获取学生的作业列表"""
+        """获取学生的作业列表（支持按提交状态在数据库层面筛选，分页正确）"""
         # 学生加入的班级
         class_subq = select(ClassStudent.class_id).where(
             ClassStudent.student_id == student_id
         )
 
+        # 基础条件：学生所在班级的所有作业（不再限制 active）
         conditions = [
             Assignment.class_id.in_(class_subq),
-            Assignment.status.in_(["active"]),
         ]
+
+        # 按学生提交状态在数据库层面筛选
+        if status == "pending":
+            # 不存在提交记录
+            subq = select(AssignmentSubmission.id).where(
+                and_(
+                    AssignmentSubmission.assignment_id == Assignment.id,
+                    AssignmentSubmission.student_id == student_id,
+                )
+            )
+            conditions.append(~exists(subq))
+        elif status == "returned":
+            # 存在状态为 returned 的提交
+            subq = select(AssignmentSubmission.id).where(
+                and_(
+                    AssignmentSubmission.assignment_id == Assignment.id,
+                    AssignmentSubmission.student_id == student_id,
+                    AssignmentSubmission.status == "returned",
+                )
+            )
+            conditions.append(exists(subq))
+        elif status == "submitted":
+            # 存在状态为 submitted / grading 的提交
+            subq = select(AssignmentSubmission.id).where(
+                and_(
+                    AssignmentSubmission.assignment_id == Assignment.id,
+                    AssignmentSubmission.student_id == student_id,
+                    AssignmentSubmission.status.in_(["submitted", "grading"]),
+                )
+            )
+            conditions.append(exists(subq))
+        elif status == "graded":
+            # 存在状态为 graded 的提交
+            subq = select(AssignmentSubmission.id).where(
+                and_(
+                    AssignmentSubmission.assignment_id == Assignment.id,
+                    AssignmentSubmission.student_id == student_id,
+                    AssignmentSubmission.status == "graded",
+                )
+            )
+            conditions.append(exists(subq))
+        # status 为 None / "all" 时不额外筛选
 
         count_stmt = (
             select(func.count()).select_from(Assignment).where(and_(*conditions))
@@ -738,7 +781,7 @@ class AssignmentService:
             if submission:
                 if submission.status == "returned":
                     my_status = "returned"
-                elif submission.status in ("graded",):
+                elif submission.status == "graded":
                     my_status = "graded"
                 else:
                     my_status = "submitted"
@@ -760,10 +803,6 @@ class AssignmentService:
                 "my_score": submission.score if submission and submission.status == "graded" else None,
                 "created_at": a.created_at,
             })
-
-        # 按状态筛选
-        if status:
-            items = [i for i in items if i["my_status"] == status]
 
         return items, total
 
@@ -840,9 +879,12 @@ class AssignmentService:
         if existing and existing.status != "returned":
             return "你已提交过该作业，不可重复提交"
 
-        # 检查截止时间
-        now = datetime.utcnow()
-        if assignment.due_date and now > assignment.due_date and not assignment.allow_late_submission:
+        # 检查截止时间（兼容时区感知和 naive datetime）
+        now = datetime.now(timezone.utc)
+        due = assignment.due_date
+        if due is not None and due.tzinfo is None:
+            due = due.replace(tzinfo=timezone.utc)
+        if due and now > due and not assignment.allow_late_submission:
             return "已过截止时间，该作业不允许迟交"
 
         if existing and existing.status == "returned":
