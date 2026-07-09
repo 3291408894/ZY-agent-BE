@@ -36,7 +36,7 @@ class ClassResourceService:
     ) -> dict:
         """
         将教学资源发送到指定班级。
-        - 验证资源存在且属于当前教师
+        - 验证资源存在且可用
         - 验证每个班级属于当前教师
         - 防重复发送（唯一约束）
         返回: { "success_count": int, "skipped": list[str], "errors": list[str] }
@@ -49,9 +49,7 @@ class ClassResourceService:
             )
         )
         if not resource:
-            raise ValueError("资源不存在")
-        if resource.uploader_id != teacher_id:
-            raise ValueError("无权分享此资源，仅上传者可操作")
+            raise ValueError("资源不存在或已被删除")
 
         # 2. 验证班级归属
         success_count = 0

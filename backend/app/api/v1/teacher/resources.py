@@ -312,7 +312,7 @@ async def send_resource_to_classes(
     current_user: User = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db),
 ):
-    """将教学资源发送到指定班级（可多选），仅资源上传者可操作"""
+    """将教学资源发送到指定班级（可多选）"""
     service = ClassResourceService(db)
     try:
         result = await service.send_to_classes(
