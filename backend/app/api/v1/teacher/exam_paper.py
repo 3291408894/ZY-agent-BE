@@ -19,6 +19,8 @@ from app.schemas.exam_paper import (
     ExportFormat,
 )
 from app.services.exam_paper_service import ExamPaperService
+from app.services.class_exam_paper_service import ClassExamPaperService
+from app.schemas.class_exam_paper import SendExamPaperToClassRequest
 
 router = APIRouter()
 
@@ -207,3 +209,41 @@ async def export_exam_paper(
             "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
         },
     )
+
+
+# ============================================================
+# POST /{paper_id}/send-to-class — 发送试卷到班级
+# ============================================================
+
+@router.post("/{paper_id}/send-to-class", summary="发送试卷到班级")
+async def send_exam_paper_to_classes(
+    paper_id: str,
+    body: SendExamPaperToClassRequest,
+    current_user: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    """教师将试卷发送到指定班级"""
+    service = ClassExamPaperService(db)
+    try:
+        result = await service.send_to_classes(
+            exam_paper_id=paper_id,
+            class_ids=body.class_ids,
+            teacher_id=current_user.id,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": ErrorCode.PARAM_INVALID, "message": str(e), "detail": None},
+        )
+
+    await db.commit()
+
+    parts: list[str] = []
+    if result["success_count"] > 0:
+        parts.append(f"已发送到 {result['success_count']} 个班级")
+    if result["skipped"]:
+        parts.append(f"{len(result['skipped'])} 个班级已分享过")
+    if result["errors"]:
+        parts.append(f"{len(result['errors'])} 个班级发送失败")
+
+    return make_response(data=result, message="，".join(parts) or "操作完成")
