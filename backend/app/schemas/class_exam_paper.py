@@ -24,6 +24,7 @@ class ClassExamPaperItem(BaseModel):
     resource_type: str = "exam_paper"
     shared_by: str
     shared_by_name: str = ""
+    assignment_id: str | None = None
     created_at: str | None = None
 
     class Config:

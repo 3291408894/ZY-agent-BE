@@ -408,17 +408,20 @@ class AssignmentService:
                 ai_qf_map[qf.get("question_number")] = qf
 
         if scores:
-            # 教师提供了逐题评分，合并AI客观题+教师主观题
+            # 教师提供了逐题评分，以教师评分为准，AI反馈作为参考
             scores_map = {s.get("question_number"): s.get("score", 0) for s in scores}
             for q in all_questions:
                 q_num = q["number"]
-                if q["type"] == "objective" and q_num in ai_qf_map:
-                    # 客观题取AI自动评分
-                    s = ai_qf_map[q_num].get("score", 0)
-                    question_feedback.append(ai_qf_map[q_num])
+                s = min(scores_map.get(q_num, 0), q["max_score"])
+                ai_qf = ai_qf_map.get(q_num)
+                if ai_qf:
+                    # 保留AI反馈中的评价信息，但分数以教师输入的为准
+                    question_feedback.append({
+                        **ai_qf,
+                        "score": s,
+                        "teacher_override": True,
+                    })
                 else:
-                    # 主观题取教师评分
-                    s = min(scores_map.get(q_num, 0), q["max_score"])
                     question_feedback.append({
                         "question_number": q_num,
                         "score": s,

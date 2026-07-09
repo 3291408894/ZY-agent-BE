@@ -27,7 +27,7 @@ class ChatSession(Base):
     # 关系
     user: Mapped["User"] = relationship(back_populates="chat_sessions")
     messages: Mapped[list["ChatMessage"]] = relationship(
-        back_populates="session", order_by="ChatMessage.created_at"
+        back_populates="session", order_by="ChatMessage.created_at", passive_deletes=True
     )
 
 

@@ -83,15 +83,25 @@ class ExerciseService:
             yield sse_json({"type": "error", "message": f"AI 服务调用失败: {str(e)}"})
             return
 
-        # 3. 解析习题 JSON
+        # 3. 解析习题 JSON（raw_decode 自动截断 LLM 追加的多余文本）
         exercises_data = []
         try:
             json_str = extract_json(full_text)
             if json_str:
                 exercises_data = json.loads(json_str)
             else:
-                # 尝试直接解析整个响应
-                exercises_data = json.loads(full_text.strip())
+                # 回退：用 raw_decode 从原始响应中截取有效 JSON
+                decoder = json.JSONDecoder()
+                stripped = full_text.strip()
+                for marker in ["[", "{"]:
+                    idx = stripped.find(marker)
+                    if idx == -1:
+                        continue
+                    try:
+                        exercises_data, _ = decoder.raw_decode(stripped, idx)
+                        break
+                    except json.JSONDecodeError:
+                        continue
         except (json.JSONDecodeError, Exception) as e:
             logger.warning(f"LLM 返回的习题 JSON 解析失败 | user={user_id} | error={e}")
             yield sse_json({"type": "error", "message": "AI 生成的习题格式异常，请重试"})
@@ -131,6 +141,7 @@ class ExerciseService:
             exercise = Exercise(
                 id=exercise_dict["id"],
                 user_id=user_id,
+                batch_id=batch_id,
                 subject=subject,
                 grade=grade,
                 question_type=question_type,
@@ -333,43 +344,89 @@ class ExerciseService:
         page_size: int = 20,
     ) -> tuple[list[dict], int]:
         """
-        获取用户的做题历史（按时间倒序，按批次聚合）。
+        获取用户的做题历史（按批次聚合，按时间倒序）。
 
-        返回: (items, total)
+        返回: (batches, total_batches)
         """
-        # 按创建时间分组（同一批次 = 同一秒内创建的习题）
-        # 简化处理：直接查询用户的所有习题，按时间倒序
-        count_stmt = (
-            select(func.count())
-            .select_from(Exercise)
-            .where(Exercise.user_id == user_id)
-        )
-        total = (await self.db.execute(count_stmt)).scalar() or 0
-
+        # 查询用户所有习题，在 Python 中按 batch_id 分组
+        # 避免使用 array_agg（MySQL 8.0 兼容性问题）
         stmt = (
             select(Exercise)
             .where(Exercise.user_id == user_id)
             .order_by(desc(Exercise.created_at))
-            .offset((page - 1) * page_size)
-            .limit(page_size)
         )
         result = await self.db.execute(stmt)
-        exercises = result.scalars().all()
+        all_exercises = result.scalars().all()
 
-        items = []
-        for ex in exercises:
-            items.append({
-                "id": ex.id,
-                "subject": ex.subject,
-                "grade": ex.grade,
-                "question_type": ex.question_type,
-                "question": ex.question,
-                "difficulty": ex.difficulty,
-                "knowledge_points": ex.knowledge_points,
-                "created_at": ex.created_at.isoformat() if ex.created_at else None,
+        if not all_exercises:
+            return [], 0
+
+        # 按 batch_id 分组（旧数据无 batch_id 时用 exercise id 兜底）
+        batch_groups: dict[str, list[Exercise]] = {}
+        for ex in all_exercises:
+            key = ex.batch_id or ex.id
+            batch_groups.setdefault(key, []).append(ex)
+
+        # 按每组最新时间排序
+        sorted_batches = sorted(
+            batch_groups.items(),
+            key=lambda item: max(ex.created_at for ex in item[1]),
+            reverse=True,
+        )
+
+        total = len(sorted_batches)
+
+        # 分页
+        paged = sorted_batches[(page - 1) * page_size : page * page_size]
+
+        # 收集所有 exercise_ids 用于批量查询作答记录
+        all_ids = [ex.id for _, exercises in paged for ex in exercises]
+        attempts_by_exercise: dict[str, ExerciseAttempt] = {}
+        if all_ids:
+            attempts_stmt = select(ExerciseAttempt).where(
+                ExerciseAttempt.exercise_id.in_(all_ids)
+            )
+            attempts_result = await self.db.execute(attempts_stmt)
+            for a in attempts_result.scalars().all():
+                attempts_by_exercise[a.exercise_id] = a
+
+        # 组装批次结果
+        batches = []
+        for batch_key, exercises in paged:
+            correct_count = sum(
+                1 for ex in exercises
+                if attempts_by_exercise.get(ex.id) and attempts_by_exercise[ex.id].is_correct
+            )
+            graded_count = sum(1 for ex in exercises if ex.id in attempts_by_exercise)
+
+            # 全部知识点（卡片展示用）
+            kp_set: set[str] = set()
+            # 错题知识点（薄弱知识点汇总用）
+            weak_kp_set: set[str] = set()
+            for ex in exercises:
+                if ex.knowledge_points:
+                    for kp in ex.knowledge_points:
+                        kp_str = kp if isinstance(kp, str) else str(kp)
+                        kp_set.add(kp_str)
+                        # 只统计答错的知识点
+                        att = attempts_by_exercise.get(ex.id)
+                        if att and att.is_correct is False:
+                            weak_kp_set.add(kp_str)
+
+            batches.append({
+                "batch_id": batch_key,
+                "subject": exercises[0].subject,
+                "grade": exercises[0].grade,
+                "difficulty": exercises[0].difficulty,
+                "exercise_count": len(exercises),
+                "graded_count": graded_count,
+                "correct_count": correct_count,
+                "knowledge_points": sorted(kp_set),
+                "weak_knowledge_points": sorted(weak_kp_set),
+                "created_at": max(ex.created_at for ex in exercises).isoformat(),
             })
 
-        return items, total
+        return batches, total
 
     async def get_batch_detail(self, user_id: str, batch_id: str) -> dict | None:
         """
@@ -377,17 +434,31 @@ class ExerciseService:
 
         参数:
             user_id: 用户 ID
-            batch_id: 批次 ID（这里简化为查询该用户最近生成的一批习题）
+            batch_id: 批次 ID
         """
-        # 查询该用户的所有习题，按时间倒序
+        # 按 batch_id 精确查询
         stmt = (
             select(Exercise)
-            .where(Exercise.user_id == user_id)
-            .order_by(desc(Exercise.created_at))
-            .limit(100)
+            .where(
+                Exercise.user_id == user_id,
+                Exercise.batch_id == batch_id,
+            )
+            .order_by(Exercise.created_at)
         )
         result = await self.db.execute(stmt)
         exercises = result.scalars().all()
+
+        # 兼容旧数据：如果没有 batch_id 匹配，回退到按 id 查询
+        if not exercises:
+            stmt = (
+                select(Exercise)
+                .where(
+                    Exercise.user_id == user_id,
+                    Exercise.id == batch_id,
+                )
+            )
+            result = await self.db.execute(stmt)
+            exercises = result.scalars().all()
 
         if not exercises:
             return None
@@ -404,10 +475,19 @@ class ExerciseService:
         attempts_map = {a.exercise_id: a for a in attempts}
 
         exercises_data = []
+        total_score = 0.0
+        correct_count = 0
         for ex in exercises:
             attempt = attempts_map.get(ex.id)
+            if attempt and attempt.is_correct:
+                correct_count += 1
+                total_score += float(attempt.score or 0)
+            elif attempt:
+                total_score += float(attempt.score or 0)
             exercises_data.append({
                 "id": ex.id,
+                "subject": ex.subject,
+                "grade": ex.grade,
                 "question": ex.question,
                 "question_type": ex.question_type,
                 "options": ex.options,
@@ -421,9 +501,19 @@ class ExerciseService:
                 "created_at": ex.created_at.isoformat() if ex.created_at else None,
             })
 
+        has_attempts = len(attempts_map) > 0
+        grade_result = None
+        if has_attempts:
+            grade_result = {
+                "total_score": total_score,
+                "correct_count": correct_count,
+                "total_count": len(exercises),
+            }
+
         return {
             "batch_id": batch_id,
             "exercises": exercises_data,
+            "grade_result": grade_result,
         }
 
     async def delete_batch(self, user_id: str, batch_id: str) -> bool:
@@ -434,14 +524,43 @@ class ExerciseService:
             user_id: 用户 ID
             batch_id: 批次 ID
         """
-        # 安全校验：只能删除自己的
-        stmt = delete(Exercise).where(
+        # 1. 查出该批次的所有习题 ID
+        id_stmt = select(Exercise.id).where(
             Exercise.user_id == user_id,
+            Exercise.batch_id == batch_id,
         )
-        result = await self.db.execute(stmt)
+        id_result = await self.db.execute(id_stmt)
+        exercise_ids = [row[0] for row in id_result.all()]
+
+        # 兼容旧数据：batch_id 为空时，前端用 exercise.id 兜底
+        if not exercise_ids:
+            id_stmt = select(Exercise.id).where(
+                Exercise.user_id == user_id,
+                Exercise.id == batch_id,
+            )
+            id_result = await self.db.execute(id_stmt)
+            exercise_ids = [row[0] for row in id_result.all()]
+
+        if not exercise_ids:
+            return False
+
+        # 2. 先删关联的作答记录（避免外键约束阻止删除）
+        del_attempts = delete(ExerciseAttempt).where(
+            ExerciseAttempt.exercise_id.in_(exercise_ids)
+        )
+        await self.db.execute(del_attempts)
+
+        # 3. 再删习题
+        del_exercises = delete(Exercise).where(
+            Exercise.id.in_(exercise_ids)
+        )
+        result = await self.db.execute(del_exercises)
         deleted = result.rowcount > 0
         if deleted:
-            logger.info(f"习题记录已删除 | user={user_id} | deleted_count={result.rowcount}")
+            logger.info(
+                f"习题记录已删除 | user={user_id} | batch={batch_id} "
+                f"| deleted_count={result.rowcount}"
+            )
         return deleted
 
     # ================================================================

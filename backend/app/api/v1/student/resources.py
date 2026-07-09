@@ -113,6 +113,42 @@ async def list_class_exam_papers(
 
 
 # ============================================================
+# 开始在线作答（按需创建作业）
+# ============================================================
+
+@router.post("/classes/{class_id}/exam-papers/{paper_id}/start-answer", summary="开始在线作答")
+async def start_exam_answer(
+    class_id: str,
+    paper_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    学生点击试卷的"在线作答"时调用。
+    若该试卷在此班级已有对应作业则直接返回作业ID；
+    否则基于试卷内容自动创建作业（兼容历史数据）。
+    """
+    service = ClassExamPaperService(db)
+    try:
+        assignment_id = await service.get_or_create_assignment_for_student(
+            class_id=class_id,
+            exam_paper_id=paper_id,
+            student_id=current_user.id,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": ErrorCode.PARAM_INVALID, "message": str(e), "detail": None},
+        )
+
+    await db.commit()
+    return make_response(
+        data={"assignment_id": assignment_id},
+        message="可以开始作答",
+    )
+
+
+# ============================================================
 # 下载班级试卷
 # ============================================================
 

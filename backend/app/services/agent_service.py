@@ -12,7 +12,7 @@ import uuid
 from typing import AsyncIterator
 
 from loguru import logger
-from sqlalchemy import desc, func, select
+from sqlalchemy import delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agent.orchestrator import agent_orchestrator
@@ -112,11 +112,20 @@ class AgentService:
         """
         删除会话（级联删除消息）。
 
+        先手动删除关联消息，再删除会话，避免依赖数据库 ON DELETE CASCADE
+        （部分部署环境可能未正确配置外键级联）。
+
         返回: True 成功，False 会话不存在或无权操作
         """
         session = await self.db.get(ChatSession, session_id)
         if not session or session.user_id != user_id:
             return False
+
+        # 先删除关联消息（不依赖数据库级联）
+        await self.db.execute(
+            delete(ChatMessage).where(ChatMessage.session_id == session_id)
+        )
+        # 再删除会话
         await self.db.delete(session)
         await self.db.flush()
         logger.info(f"[Agent] 删除会话 | session_id={session_id}")

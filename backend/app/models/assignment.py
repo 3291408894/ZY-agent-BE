@@ -27,6 +27,10 @@ class Assignment(Base):
     teacher_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
+    exam_paper_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("exam_papers.id", ondelete="SET NULL"),
+        nullable=True, index=True, comment="关联的试卷ID（从试卷发布创建时填充）"
+    )
     title: Mapped[str] = mapped_column(String(200), comment="作业标题")
     description: Mapped[str | None] = mapped_column(Text, nullable=True, comment="作业说明/要求")
     subject: Mapped[str] = mapped_column(String(50), comment="学科")
