@@ -880,3 +880,5 @@ VALUES (
 -- 执行完毕 — 共 23 张表 + 种子数据
 -- 对应 PBI: 01, 04, 05, 06, 08, 09, 10, 11, 12 + 教师端五大功能模块
 -- ============================================================
+
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS exam_paper_id CHAR(36) NULL COMMENT '关联试卷ID';
