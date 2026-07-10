@@ -922,3 +922,4 @@ VALUES (
 ALTER TABLE `users`
     ADD COLUMN IF NOT EXISTS `school_name` VARCHAR(128) NULL COMMENT '教师所属学校' AFTER `avatar_url`,
     ADD COLUMN IF NOT EXISTS `bio`         VARCHAR(512) NULL COMMENT '教师简介/个人介绍' AFTER `school_name`;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS exam_paper_id CHAR(36) NULL COMMENT '关联试卷ID';
