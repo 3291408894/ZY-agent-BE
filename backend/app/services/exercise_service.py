@@ -8,6 +8,7 @@
 """
 
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import AsyncIterator
@@ -20,6 +21,9 @@ from app.ai.llm_client import llm_client
 from app.ai.prompts.exercise_gen import EXERCISE_GEN_SYSTEM_PROMPT, EXERCISE_GEN_USER_TEMPLATE
 from app.core.utils import sse_json, extract_json
 from app.models.exercise import Exercise, ExerciseAttempt
+
+# 选项前缀正则：匹配 "A.", "A.", "A)", "(A)" 等
+_OPTION_PREFIX_RE = re.compile(r'^[A-D][.)]\s*')
 
 
 class ExerciseService:
@@ -126,11 +130,18 @@ class ExerciseService:
 
             # 构造习题对象
             question_type = ex.get("question_type", "choice")
+
+            # 清理选择题选项：去除 LLM 可能添加的 "A." / "A)" 等前缀
+            raw_options = ex.get("options")
+            cleaned_options = None
+            if raw_options and question_type == "choice":
+                cleaned_options = [_OPTION_PREFIX_RE.sub('', opt) for opt in raw_options]
+
             exercise_dict = {
                 "id": str(uuid.uuid4()),
                 "question": ex.get("question", ""),
                 "question_type": question_type,
-                "options": ex.get("options"),
+                "options": cleaned_options,
                 "answer": ex.get("answer"),
                 "analysis": ex.get("analysis"),
                 "difficulty": ex.get("difficulty", difficulty),

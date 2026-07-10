@@ -1,11 +1,12 @@
 -- ============================================================
 -- 智翼（ZhiYi）AI 学习助手平台 — MySQL 完整建表脚本
 -- ============================================================
--- 版本:    v3.1
--- 日期:    2026-07-08
+-- 版本:    v3.2
+-- 日期:    2026-07-10
 -- 数据库:  zhiyi
 -- 引擎:    MySQL 8.0+ / InnoDB
 -- 字符集:  utf8mb4 / utf8mb4_unicode_ci
+-- 来源:    实际数据库 mysqldump 导出
 -- ============================================================
 -- 表清单 (共 23 张):
 --   01. users                    用户表（含角色字段）
@@ -53,31 +54,28 @@
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `users` (
     `id`                CHAR(36)        NOT NULL                            COMMENT '用户唯一标识 (UUID v4)',
-    `email`             VARCHAR(255)    NULL                                COMMENT '邮箱（唯一，可选）',
-    `phone`             VARCHAR(32)     NULL                                COMMENT '手机号（唯一，可选）',
+    `email`             VARCHAR(255)    NULL                                COMMENT '邮箱',
+    `phone`             VARCHAR(32)     NULL                                COMMENT '手机号',
     `hashed_password`   VARCHAR(255)    NOT NULL                            COMMENT 'bcrypt 哈希密码',
     `role`              VARCHAR(20)     NOT NULL DEFAULT 'student'          COMMENT '用户角色: student-学生, teacher-教师, admin-管理员',
     `nickname`          VARCHAR(64)     NOT NULL DEFAULT '同学'              COMMENT '昵称',
     `grade`             VARCHAR(32)     NULL                                COMMENT '年级，如"七年级"',
-    `subjects`          JSON            NOT NULL DEFAULT ('[]')             COMMENT '学科偏好列表，如 ["语文","数学"]',
+    `subjects`          JSON            NOT NULL                            COMMENT '学科偏好列表，如 ["语文","数学"]',
     `textbook_version`  VARCHAR(64)     NULL                                COMMENT '教材版本，如"部编版"',
     `avatar_url`        VARCHAR(512)    NULL                                COMMENT '头像 URL',
     `school_name`       VARCHAR(128)    NULL                                COMMENT '教师所属学校',
     `bio`               VARCHAR(512)    NULL                                COMMENT '教师简介/个人介绍',
     `theme_preferences` JSON            NOT NULL DEFAULT ('{}')             COMMENT '主题偏好设置（护眼模式等）',
     `is_active`         TINYINT(1)      NOT NULL DEFAULT 1                  COMMENT '账户启用状态: 1=启用 0=禁用',
-    `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '注册时间',
+    `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
     `updated_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                        ON UPDATE CURRENT_TIMESTAMP         COMMENT '最近更新时间',
+                                        ON UPDATE CURRENT_TIMESTAMP         COMMENT '更新时间',
 
     PRIMARY KEY (`id`),
-    UNIQUE INDEX `uk_users_email` (`email`),
-    UNIQUE INDEX `uk_users_phone` (`phone`),
-    INDEX `idx_users_is_active` (`is_active`),
-    INDEX `idx_users_role` (`role`),
-    INDEX `idx_users_created_at` (`created_at`)
+    UNIQUE INDEX `idx_users_email` (`email`),
+    UNIQUE INDEX `idx_users_phone` (`phone`),
+    INDEX `idx_users_role` (`role`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  ROW_FORMAT=DYNAMIC
   COMMENT='用户表';
 
 
@@ -89,20 +87,19 @@ CREATE TABLE IF NOT EXISTS `users` (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `learning_profiles` (
     `id`                CHAR(36)        NOT NULL                            COMMENT '档案唯一标识 (UUID v4)',
-    `user_id`           CHAR(36)        NOT NULL                            COMMENT '关联用户ID（唯一）',
+    `user_id`           CHAR(36)        NOT NULL                            COMMENT '关联用户ID',
     `total_study_time`  INT             NOT NULL DEFAULT 0                  COMMENT '累计学习时长（秒）',
     `total_exercises`   INT             NOT NULL DEFAULT 0                  COMMENT '累计做题数',
-    `correct_rate`      DOUBLE          NOT NULL DEFAULT 0.0                COMMENT '综合正确率 (0.0 ~ 1.0)',
-    `weak_points`       JSON            NOT NULL DEFAULT ('[]')             COMMENT '薄弱知识点列表，如 ["文言文阅读","二次函数"]',
+    `correct_rate`      DOUBLE          NOT NULL DEFAULT 0                  COMMENT '正确率',
+    `weak_points`       JSON            NOT NULL                            COMMENT '薄弱知识点列表',
     `updated_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                        ON UPDATE CURRENT_TIMESTAMP         COMMENT '最近更新时间',
+                                        ON UPDATE CURRENT_TIMESTAMP         COMMENT '更新时间',
 
     PRIMARY KEY (`id`),
-    UNIQUE INDEX `uk_lp_user_id` (`user_id`),
+    UNIQUE INDEX `idx_lp_user_id` (`user_id`),
     CONSTRAINT `fk_lp_user` FOREIGN KEY (`user_id`)
         REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  ROW_FORMAT=DYNAMIC
   COMMENT='学习档案表';
 
 
@@ -165,18 +162,17 @@ CREATE TABLE IF NOT EXISTS `password_reset_tokens` (
 CREATE TABLE IF NOT EXISTS `chat_sessions` (
     `id`                CHAR(36)        NOT NULL                            COMMENT '会话唯一标识 (UUID v4)',
     `user_id`           CHAR(36)        NOT NULL                            COMMENT '关联用户ID',
-    `title`             VARCHAR(255)    NOT NULL DEFAULT '新对话'            COMMENT '会话标题（可由首条消息自动生成）',
+    `title`             VARCHAR(255)    NOT NULL DEFAULT '新对话'            COMMENT '会话标题',
     `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
     `updated_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                        ON UPDATE CURRENT_TIMESTAMP         COMMENT '最近一条消息时间',
+                                        ON UPDATE CURRENT_TIMESTAMP         COMMENT '更新时间',
 
     PRIMARY KEY (`id`),
-    INDEX `idx_cs_user_updated` (`user_id`, `updated_at` DESC),
+    INDEX `idx_cs_user_id` (`user_id`),
     CONSTRAINT `fk_cs_user` FOREIGN KEY (`user_id`)
         REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  ROW_FORMAT=DYNAMIC
-  COMMENT='AI Agent 对话会话表';
+  COMMENT='对话会话表';
 
 
 -- ============================================================
@@ -186,21 +182,19 @@ CREATE TABLE IF NOT EXISTS `chat_sessions` (
 --       thought_chain / tool_calls 为 PBI_12 可解释性需求
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `chat_messages` (
-    `id`                INT             NOT NULL AUTO_INCREMENT              COMMENT '消息自增ID（保证时间序）',
+    `id`                INT             NOT NULL AUTO_INCREMENT              COMMENT '消息自增ID',
     `session_id`        CHAR(36)        NOT NULL                            COMMENT '关联会话ID',
     `role`              VARCHAR(16)     NOT NULL                            COMMENT '角色: user / assistant',
-    `content`           TEXT            NOT NULL                            COMMENT '消息文本内容（支持 Markdown）',
-    `thought_chain`     JSON            NULL                                COMMENT '思考链步骤 [{step, content, timestamp}]',
-    `tool_calls`        JSON            NULL                                COMMENT '工具调用记录 [{tool, args, result}]',
-    `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '消息时间',
+    `content`           TEXT            NOT NULL                            COMMENT '消息文本内容',
+    `thought_chain`     JSON            NULL                                COMMENT '思考链步骤 (PBI_12)',
+    `tool_calls`        JSON            NULL                                COMMENT '工具调用记录 (PBI_12)',
+    `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
 
     PRIMARY KEY (`id`),
-    INDEX `idx_cm_session_time` (`session_id`, `created_at`),
+    INDEX `idx_cm_session_id` (`session_id`),
     CONSTRAINT `fk_cm_session` FOREIGN KEY (`session_id`)
-        REFERENCES `chat_sessions` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `chk_cm_role` CHECK (`role` IN ('user', 'assistant'))
+        REFERENCES `chat_sessions` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  ROW_FORMAT=DYNAMIC
   COMMENT='对话消息表';
 
 
@@ -215,20 +209,17 @@ CREATE TABLE IF NOT EXISTS `summaries` (
     `id`                CHAR(36)        NOT NULL                            COMMENT '总结唯一标识 (UUID v4)',
     `user_id`           CHAR(36)        NOT NULL                            COMMENT '关联用户ID',
     `source_type`       VARCHAR(16)     NOT NULL                            COMMENT '来源类型: text / file',
-    `source_content`    TEXT            NOT NULL                            COMMENT '原文内容 或 文件ID引用',
+    `source_content`    TEXT            NOT NULL                            COMMENT '原文 或 文件ID引用',
     `summary_text`      TEXT            NOT NULL                            COMMENT 'AI 生成的总结正文',
     `mode`              VARCHAR(16)     NOT NULL DEFAULT 'detailed'          COMMENT '总结模式: brief / detailed',
-    `knowledge_points`  JSON            NOT NULL DEFAULT ('[]')             COMMENT '提取的知识点列表 [{name, weight}]',
+    `knowledge_points`  JSON            NOT NULL                            COMMENT '提取的知识点列表',
     `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
 
     PRIMARY KEY (`id`),
-    INDEX `idx_sm_user_time` (`user_id`, `created_at` DESC),
+    INDEX `idx_sm_user_id` (`user_id`),
     CONSTRAINT `fk_sm_user` FOREIGN KEY (`user_id`)
-        REFERENCES `users` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `chk_sm_source_type` CHECK (`source_type` IN ('text', 'file')),
-    CONSTRAINT `chk_sm_mode` CHECK (`mode` IN ('brief', 'detailed'))
+        REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  ROW_FORMAT=DYNAMIC
   COMMENT='课文总结记录表';
 
 
@@ -241,27 +232,19 @@ CREATE TABLE IF NOT EXISTS `summaries` (
 CREATE TABLE IF NOT EXISTS `uploaded_files` (
     `id`                CHAR(36)        NOT NULL                            COMMENT '文件唯一标识 (UUID v4)',
     `user_id`           CHAR(36)        NOT NULL                            COMMENT '关联用户ID',
-    `filename`          VARCHAR(255)    NOT NULL                            COMMENT '原始文件名（含扩展名）',
+    `filename`          VARCHAR(255)    NOT NULL                            COMMENT '原始文件名',
     `file_type`         VARCHAR(16)     NOT NULL                            COMMENT '文件类型: pdf / docx / txt / md / csv / json / html / xml / yaml',
     `file_size`         BIGINT          NOT NULL                            COMMENT '文件大小（字节数）',
-    `storage_path`      VARCHAR(512)    NOT NULL                            COMMENT '服务器存储路径',
+    `storage_path`      VARCHAR(512)    NOT NULL                            COMMENT '存储路径',
     `parse_status`      VARCHAR(16)     NOT NULL DEFAULT 'pending'          COMMENT '解析状态: pending / processing / done / failed',
-    `parsed_content`    TEXT            NULL                                COMMENT '解析出的文本内容（done 时有值）',
-    `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '上传时间',
+    `parsed_content`    TEXT            NULL                                COMMENT '解析出的文本内容',
+    `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
 
     PRIMARY KEY (`id`),
-    INDEX `idx_uf_user_time` (`user_id`, `created_at` DESC),
-    INDEX `idx_uf_parse_status` (`parse_status`),
+    INDEX `idx_uf_user_id` (`user_id`),
     CONSTRAINT `fk_uf_user` FOREIGN KEY (`user_id`)
-        REFERENCES `users` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `chk_uf_file_type` CHECK (`file_type` IN (
-        'pdf', 'docx', 'txt', 'md', 'csv', 'json', 'html', 'xml', 'yaml'
-    )),
-    CONSTRAINT `chk_uf_parse_status` CHECK (`parse_status` IN (
-        'pending', 'processing', 'done', 'failed'
-    ))
+        REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  ROW_FORMAT=DYNAMIC
   COMMENT='上传文件表';
 
 
@@ -269,33 +252,29 @@ CREATE TABLE IF NOT EXISTS `uploaded_files` (
 -- 09. exercises — 习题表 (PBI_08)
 -- ============================================================
 -- 说明: AI 生成或用户创建的习题，支持 5 种题型
---       常用筛选: subject + grade + difficulty + question_type
+--       batch_id 关联习题批次（可为空）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `exercises` (
     `id`                CHAR(36)        NOT NULL                            COMMENT '习题唯一标识 (UUID v4)',
-    `user_id`           CHAR(36)        NOT NULL                            COMMENT '创建者用户ID',
-    `subject`           VARCHAR(32)     NOT NULL                            COMMENT '学科，如"语文"、"数学"',
-    `grade`             VARCHAR(32)     NOT NULL                            COMMENT '年级，如"七年级"、"八年级"',
-    `question_type`     VARCHAR(16)     NOT NULL                            COMMENT '题型: choice / fill / short_answer / calculation / analysis',
+    `user_id`           CHAR(36)        NOT NULL                            COMMENT '关联用户ID（创建者）',
+    `subject`           VARCHAR(32)     NOT NULL                            COMMENT '学科，如"语文"',
+    `grade`             VARCHAR(32)     NOT NULL                            COMMENT '年级，如"七年级"',
+    `question_type`     VARCHAR(32)     NOT NULL                            COMMENT '题型: choice / fill / short_answer / calculation / analysis',
     `question`          TEXT            NOT NULL                            COMMENT '题目正文',
-    `options`           JSON            NULL                                COMMENT '选择题选项 ["A.xxx", "B.xxx", ...]',
+    `options`           JSON            NULL                                COMMENT '选择题选项列表',
     `answer`            TEXT            NOT NULL                            COMMENT '标准答案',
     `analysis`          TEXT            NULL                                COMMENT '解题思路 / 答案解析',
-    `difficulty`        VARCHAR(8)      NOT NULL                            COMMENT '难度: easy / medium / hard',
-    `knowledge_points`  JSON            NOT NULL DEFAULT ('[]')             COMMENT '关联知识点 ["一元一次方程","..."]',
+    `difficulty`        VARCHAR(16)     NOT NULL                            COMMENT '难度: easy / medium / hard',
+    `knowledge_points`  JSON            NOT NULL                            COMMENT '关联知识点列表',
     `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
+    `batch_id`          VARCHAR(36)     NULL                                COMMENT '关联批次ID',
 
     PRIMARY KEY (`id`),
-    INDEX `idx_ex_user_time` (`user_id`, `created_at` DESC),
-    INDEX `idx_ex_filter` (`subject`, `grade`, `difficulty`, `question_type`),
+    INDEX `idx_ex_user_id` (`user_id`),
+    INDEX `idx_exercises_batch_id` (`batch_id`),
     CONSTRAINT `fk_ex_user` FOREIGN KEY (`user_id`)
-        REFERENCES `users` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `chk_ex_question_type` CHECK (`question_type` IN (
-        'choice', 'fill', 'short_answer', 'calculation', 'analysis'
-    )),
-    CONSTRAINT `chk_ex_difficulty` CHECK (`difficulty` IN ('easy', 'medium', 'hard'))
+        REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  ROW_FORMAT=DYNAMIC
   COMMENT='习题表';
 
 
@@ -332,30 +311,26 @@ CREATE TABLE IF NOT EXISTS `exercise_batches` (
 -- 11. exercise_attempts — 作答记录表 (PBI_09, PBI_10)
 -- ============================================================
 -- 说明: 记录用户对每道题的每次作答
---       通过 batch_id 关联批次，支持"本次练习"聚合
 --       graded_by: auto=AI/Auto评分, manual=手动批改
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `exercise_attempts` (
     `id`                CHAR(36)        NOT NULL                            COMMENT '作答唯一标识 (UUID v4)',
-    `user_id`           CHAR(36)        NOT NULL                            COMMENT '答题者用户ID',
+    `user_id`           CHAR(36)        NOT NULL                            COMMENT '关联用户ID（答题者）',
     `exercise_id`       CHAR(36)        NOT NULL                            COMMENT '关联习题ID',
-    `batch_id`          CHAR(36)        NULL                                COMMENT '关联批次ID（可选，单题练习时为空）',
     `user_answer`       TEXT            NOT NULL                            COMMENT '用户提交的答案',
-    `is_correct`        TINYINT(1)      NULL                                COMMENT '是否答对: 1=对 0=错',
-    `score`             DOUBLE          NULL                                COMMENT '得分（0.0 ~ 1.0 或实际分值）',
+    `is_correct`        TINYINT(1)      NULL                                COMMENT '是否答对',
+    `score`             DOUBLE          NULL                                COMMENT '得分',
     `graded_by`         VARCHAR(16)     NOT NULL DEFAULT 'auto'             COMMENT '批改方式: auto / manual',
-    `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '提交时间',
+    `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
 
     PRIMARY KEY (`id`),
-    INDEX `idx_ea_user_time` (`user_id`, `created_at` DESC),
-    INDEX `idx_ea_exercise` (`exercise_id`),
-    INDEX `idx_ea_batch` (`batch_id`),
-    CONSTRAINT `fk_ea_user`     FOREIGN KEY (`user_id`)     REFERENCES `users`     (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_ea_exercise` FOREIGN KEY (`exercise_id`) REFERENCES `exercises` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_ea_batch`    FOREIGN KEY (`batch_id`)    REFERENCES `exercise_batches` (`id`) ON DELETE SET NULL,
-    CONSTRAINT `chk_ea_graded_by` CHECK (`graded_by` IN ('auto', 'manual'))
+    INDEX `idx_ea_user_id` (`user_id`),
+    INDEX `idx_ea_exercise_id` (`exercise_id`),
+    CONSTRAINT `fk_ea_exercise` FOREIGN KEY (`exercise_id`)
+        REFERENCES `exercises` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_ea_user` FOREIGN KEY (`user_id`)
+        REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  ROW_FORMAT=DYNAMIC
   COMMENT='作答记录表';
 
 
@@ -370,19 +345,17 @@ CREATE TABLE IF NOT EXISTS `exercise_attempts` (
 CREATE TABLE IF NOT EXISTS `knowledge_graphs` (
     `id`                CHAR(36)        NOT NULL                            COMMENT '图谱唯一标识 (UUID v4)',
     `user_id`           CHAR(36)        NOT NULL                            COMMENT '关联用户ID',
-    `title`             VARCHAR(255)    NOT NULL                            COMMENT '图谱标题（如"初中语文-文言文知识图谱"）',
-    `nodes`             JSON            NOT NULL                            COMMENT '图谱节点数组 [{id, label, type, x, y}]',
-    `edges`             JSON            NOT NULL                            COMMENT '图谱边数组 [{source, target, relation}]',
+    `title`             VARCHAR(255)    NOT NULL                            COMMENT '图谱标题',
+    `nodes`             JSON            NOT NULL                            COMMENT '图谱节点 [{id, label, type, x, y}]',
+    `edges`             JSON            NOT NULL                            COMMENT '图谱边 [{source, target, relation}]',
     `source_type`       VARCHAR(16)     NOT NULL                            COMMENT '来源类型: subject / chapter / file',
     `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
 
     PRIMARY KEY (`id`),
-    INDEX `idx_kg_user_time` (`user_id`, `created_at` DESC),
+    INDEX `idx_kg_user_id` (`user_id`),
     CONSTRAINT `fk_kg_user` FOREIGN KEY (`user_id`)
-        REFERENCES `users` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `chk_kg_source_type` CHECK (`source_type` IN ('subject', 'chapter', 'file'))
+        REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  ROW_FORMAT=DYNAMIC
   COMMENT='知识图谱表';
 
 
@@ -391,20 +364,19 @@ CREATE TABLE IF NOT EXISTS `knowledge_graphs` (
 -- ============================================================
 -- 说明: 教师输入学科/年级/章节/课时数，AI 流式生成结构化教案
 --       content 为 JSON，包含教学目标/重难点/教学过程/板书设计/反思模板
---       status 状态机: generating → completed / failed
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `lesson_plans` (
-    `id`                    CHAR(36)        NOT NULL                            COMMENT '教案ID (UUID v4)',
-    `user_id`               CHAR(36)        NOT NULL                            COMMENT '所属教师ID',
-    `title`                 VARCHAR(128)    NOT NULL DEFAULT '未命名教案'        COMMENT '教案标题（AI自动提取）',
+    `id`                    CHAR(36)        NOT NULL                            COMMENT '主键 UUID',
+    `user_id`               CHAR(36)        NOT NULL                            COMMENT '所属用户',
+    `title`                 VARCHAR(128)    NOT NULL DEFAULT '未命名教案'        COMMENT '教案标题',
     `subject`               VARCHAR(32)     NOT NULL                            COMMENT '学科',
     `grade`                 VARCHAR(16)     NOT NULL                            COMMENT '年级',
     `textbook_version`      VARCHAR(64)     NOT NULL DEFAULT ''                 COMMENT '教材版本',
     `unit_chapter`          VARCHAR(128)    NOT NULL DEFAULT ''                 COMMENT '单元/章节',
     `class_hours`           INT             NOT NULL DEFAULT 1                  COMMENT '课时数',
-    `teaching_objectives`   TEXT            NULL                                COMMENT '用户输入的教学目标',
+    `teaching_objectives`   TEXT            NULL                                COMMENT '教学目标',
     `requirements`          TEXT            NULL                                COMMENT '特殊要求',
-    `plan_content`          TEXT            NULL                                COMMENT 'AI生成的教案正文（Markdown）',
+    `plan_content`          TEXT            NULL                                COMMENT '教案正文(Markdown)',
     `sections`              JSON            NULL                                COMMENT '结构化分段信息',
     `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
 
@@ -416,8 +388,7 @@ CREATE TABLE IF NOT EXISTS `lesson_plans` (
     CONSTRAINT `fk_lesson_plans_user` FOREIGN KEY (`user_id`)
         REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  ROW_FORMAT=DYNAMIC
-  COMMENT='智能教案生成记录表';
+  COMMENT='教案生成记录表';
 
 
 -- ============================================================
@@ -425,7 +396,6 @@ CREATE TABLE IF NOT EXISTS `lesson_plans` (
 -- ============================================================
 -- 说明: 教师配置题型分布/难度配比，AI 流式生成完整试卷
 --       content JSON 含 header/sections/questions/answer_key/scoring_guide
---       answer_sheet 由服务端自动生成，不依赖 AI
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `exam_papers` (
     `id`                    CHAR(36)        NOT NULL                            COMMENT '试卷ID (UUID v4)',
@@ -465,7 +435,6 @@ CREATE TABLE IF NOT EXISTS `exam_papers` (
 -- 15. teaching_resources — 教学资源库主表 (教师端)
 -- ============================================================
 -- 说明: 教师上传/下载/分享课件、试卷、教案等资源
---       公共资源广场 + 个人管理 + 搜索筛选 + 收藏
 --       visibility: public=所有人可见, private=仅上传者
 --       status: active=正常, deleted=软删除, reviewing=审核中
 -- ============================================================
@@ -526,6 +495,7 @@ CREATE TABLE IF NOT EXISTS `resource_favorites` (
 
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_rf_user_res` (`user_id`, `resource_id`),
+    INDEX `fk_rf_resource` (`resource_id`),
     CONSTRAINT `fk_rf_user` FOREIGN KEY (`user_id`)
         REFERENCES `users` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_rf_resource` FOREIGN KEY (`resource_id`)
@@ -574,7 +544,7 @@ CREATE TABLE IF NOT EXISTS `classes` (
     `subject`           VARCHAR(50)     NOT NULL                            COMMENT '学科',
     `description`       VARCHAR(500)    NULL                                COMMENT '班级描述',
     `invite_code`       CHAR(8)         NOT NULL                            COMMENT '邀请码（8位字母数字，排除易混淆字符）',
-    `student_count`     INT             NOT NULL DEFAULT 0                  COMMENT '学生人数（冗余字段，通过触发器或服务层维护）',
+    `student_count`     INT             NOT NULL DEFAULT 0                  COMMENT '学生人数（冗余字段，通过服务层维护）',
     `status`            VARCHAR(20)     NOT NULL DEFAULT 'active'           COMMENT '状态: active / archived',
     `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
     `updated_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -620,6 +590,7 @@ CREATE TABLE IF NOT EXISTS `class_students` (
 -- 20. assignments — 作业表 (教师端 / 师生联动)
 -- ============================================================
 -- 说明: 教师在班级中布置作业，content 为 JSON 格式（支持客观题+主观题混合）
+--       exam_paper_id 关联试卷（从试卷发布创建时填充）
 --       status: active=进行中, closed=已截止, archived=已归档
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `assignments` (
@@ -639,12 +610,14 @@ CREATE TABLE IF NOT EXISTS `assignments` (
     `created_at`                DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '布置时间',
     `updated_at`                DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
                                                 ON UPDATE CURRENT_TIMESTAMP         COMMENT '最近更新时间',
+    `exam_paper_id`             VARCHAR(36)     NULL                                COMMENT '关联的试卷ID（从试卷发布创建时填充）',
 
     PRIMARY KEY (`id`),
     INDEX `idx_asgn_class` (`class_id`),
     INDEX `idx_asgn_teacher` (`teacher_id`),
     INDEX `idx_asgn_due` (`due_date`),
     INDEX `idx_asgn_status` (`status`),
+    INDEX `idx_assignments_exam_paper_id` (`exam_paper_id`),
     CONSTRAINT `fk_asgn_class` FOREIGN KEY (`class_id`)
         REFERENCES `classes` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_asgn_teacher` FOREIGN KEY (`teacher_id`)
@@ -697,7 +670,7 @@ CREATE TABLE IF NOT EXISTS `assignment_submissions` (
 -- 22. class_resources — 班级资源分享表 (教师端 / 师生联动)
 -- ============================================================
 -- 说明: 教师将教学资源分享到班级，学生可在班级中查看和下载
---       class_id + resource_id 联合唯一，同一资源不可重复分享到同一班级
+--       class_id + resource_id 联合唯一
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `class_resources` (
     `id`                CHAR(36)        NOT NULL                            COMMENT '分享记录ID (UUID v4)',
@@ -710,6 +683,7 @@ CREATE TABLE IF NOT EXISTS `class_resources` (
     UNIQUE INDEX `uk_cr_class_resource` (`class_id`, `resource_id`),
     INDEX `idx_cr_class_id` (`class_id`),
     INDEX `idx_cr_resource_id` (`resource_id`),
+    INDEX `fk_cr_teacher` (`shared_by`),
     CONSTRAINT `fk_cr_class` FOREIGN KEY (`class_id`)
         REFERENCES `classes` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_cr_resource` FOREIGN KEY (`resource_id`)
@@ -725,7 +699,7 @@ CREATE TABLE IF NOT EXISTS `class_resources` (
 -- 23. class_exam_papers — 班级试卷分享表 (教师端 / 师生联动)
 -- ============================================================
 -- 说明: 教师将AI生成的试卷分享到班级，学生可在班级中查看
---       class_id + exam_paper_id 联合唯一，同一试卷不可重复分享到同一班级
+--       class_id + exam_paper_id 联合唯一
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `class_exam_papers` (
     `id`                CHAR(36)        NOT NULL                            COMMENT '分享记录ID (UUID v4)',
@@ -738,6 +712,7 @@ CREATE TABLE IF NOT EXISTS `class_exam_papers` (
     UNIQUE INDEX `uq_cep_class_paper` (`class_id`, `exam_paper_id`),
     INDEX `idx_cep_class_id` (`class_id`),
     INDEX `idx_cep_exam_paper_id` (`exam_paper_id`),
+    INDEX `fk_cep_teacher` (`shared_by`),
     CONSTRAINT `fk_cep_class` FOREIGN KEY (`class_id`)
         REFERENCES `classes` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_cep_exam_paper` FOREIGN KEY (`exam_paper_id`)
@@ -752,24 +727,24 @@ CREATE TABLE IF NOT EXISTS `class_exam_papers` (
 -- ============================================================
 -- 种子数据 — 开发/测试用
 -- ============================================================
--- 密码均为: Test123456 (bcrypt 哈希)
+-- 密码均为: Test123456
 -- 注意: 以下 INSERT 使用 IGNORE 避免重复执行时报错
 -- ============================================================
 
--- 测试用户（密码: Test123456）
-INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `nickname`, `grade`, `subjects`, `textbook_version`)
+-- 测试用户：小智（密码: Test123456）
+INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `role`, `nickname`, `grade`, `subjects`, `textbook_version`)
 VALUES (
     '00000000-0000-0000-0000-000000000001',
     'demo@zhiyi.com',
     NULL,
     '$2b$12$LJ3m4ys3Lk0TSwHCpNqrNOXUWFxBfDazNGeWG3Vk7yGkvmOS0hZFe',
+    'student',
     '小智',
     '七年级',
     '["语文", "数学", "英语"]',
     '部编版'
 );
 
--- 测试用户的学习档案
 INSERT IGNORE INTO `learning_profiles` (`id`, `user_id`, `total_study_time`, `total_exercises`, `correct_rate`, `weak_points`)
 VALUES (
     '00000000-0000-0000-0000-000000000002',
@@ -780,25 +755,18 @@ VALUES (
     '["文言文阅读", "一元一次方程", "英语完形填空"]'
 );
 
-
--- ============================================================
--- 测试种子数据（开发/测试用）
--- 密码均为: Test123456!
--- ============================================================
-
--- 测试用户 1：初中生小明
-INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `nickname`, `grade`, `subjects`, `textbook_version`, `avatar_url`, `is_active`)
+-- 测试用户：小明（密码: Test123456!）
+INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `role`, `nickname`, `grade`, `subjects`, `textbook_version`)
 VALUES (
     'a0000000-0000-0000-0000-000000000001',
     'xiaoming@zhiyi.com',
     '13800000001',
     '$2b$12$RJkqRd6FuFzEd/FvjEoit.QZJAxc/XfwSnQzeipvvE.1ZiQNCFPtu',
+    'student',
     '小明',
     '七年级',
     '["语文", "数学", "英语"]',
-    '部编版',
-    NULL,
-    1
+    '部编版'
 );
 
 INSERT IGNORE INTO `learning_profiles` (`id`, `user_id`, `total_study_time`, `total_exercises`, `correct_rate`, `weak_points`)
@@ -811,19 +779,18 @@ VALUES (
     '["文言文阅读", "二次函数", "英语完形填空"]'
 );
 
--- 测试用户 2：高中生小红
-INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `nickname`, `grade`, `subjects`, `textbook_version`, `avatar_url`, `is_active`)
+-- 测试用户：小红（密码: Test123456!）
+INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `role`, `nickname`, `grade`, `subjects`, `textbook_version`)
 VALUES (
     'a0000000-0000-0000-0000-000000000002',
     'xiaohong@zhiyi.com',
     '13800000002',
     '$2b$12$RJkqRd6FuFzEd/FvjEoit.QZJAxc/XfwSnQzeipvvE.1ZiQNCFPtu',
+    'student',
     '小红',
     '高一',
     '["语文", "英语", "物理", "化学"]',
-    '人教版',
-    NULL,
-    1
+    '人教版'
 );
 
 INSERT IGNORE INTO `learning_profiles` (`id`, `user_id`, `total_study_time`, `total_exercises`, `correct_rate`, `weak_points`)
@@ -836,37 +803,22 @@ VALUES (
     '["文言文翻译", "力学综合", "有机化学"]'
 );
 
--- 测试用户 3：已禁用的账号（测试登录拒绝）
-INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `nickname`, `grade`, `subjects`, `textbook_version`, `avatar_url`, `is_active`)
+-- 测试用户：已禁用账号（密码: Test123456!）
+INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `role`, `nickname`, `grade`, `subjects`, `is_active`)
 VALUES (
     'a0000000-0000-0000-0000-000000000003',
     'disabled@zhiyi.com',
     NULL,
     '$2b$12$RJkqRd6FuFzEd/FvjEoit.QZJAxc/XfwSnQzeipvvE.1ZiQNCFPtu',
+    'student',
     '已禁用',
     '九年级',
     '["数学"]',
-    NULL,
-    NULL,
     0
 );
 
--- ============================================================
--- 存量数据库升级参考（如需从旧版升级，请手动执行以下语句）
--- 新库无需执行 — CREATE TABLE 已包含最新结构
--- ============================================================
--- ALTER TABLE `users` ADD COLUMN `theme_preferences` JSON NOT NULL DEFAULT ('{}') COMMENT '主题偏好' AFTER `avatar_url`;
--- ALTER TABLE `users` ADD COLUMN `role` VARCHAR(20) NOT NULL DEFAULT 'student' COMMENT '角色' AFTER `hashed_password`;
--- CREATE INDEX `idx_users_role` ON `users` (`role`);
-
-
--- ============================================================
--- 教师端测试种子数据
--- 密码均为: Test123456!
--- ============================================================
-
--- 测试教师用户（角色: teacher）
-INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `role`, `nickname`, `grade`, `subjects`, `textbook_version`, `avatar_url`, `is_active`)
+-- 测试教师：王老师（密码: Test123456!）
+INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `role`, `nickname`, `grade`, `subjects`, `textbook_version`)
 VALUES (
     'a0000000-0000-0000-0000-000000000010',
     'teacher@zhiyi.com',
@@ -876,13 +828,11 @@ VALUES (
     '王老师',
     '高一',
     '["数学", "物理"]',
-    '人教版',
-    NULL,
-    1
+    '人教版'
 );
 
--- 测试教师用户 2（角色: teacher）
-INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `role`, `nickname`, `grade`, `subjects`, `textbook_version`, `avatar_url`, `is_active`)
+-- 测试教师：李老师（密码: Test123456!）
+INSERT IGNORE INTO `users` (`id`, `email`, `phone`, `hashed_password`, `role`, `nickname`, `grade`, `subjects`, `textbook_version`)
 VALUES (
     'a0000000-0000-0000-0000-000000000011',
     'teacher2@zhiyi.com',
@@ -892,10 +842,29 @@ VALUES (
     '李老师',
     '八年级',
     '["语文", "英语"]',
-    '部编版',
-    NULL,
-    1
+    '部编版'
 );
+
+
+-- ============================================================
+-- 存量数据库升级参考（如需从旧版升级，请执行以下 ALTER 语句）
+-- 新库无需执行 — CREATE TABLE 已包含最新结构
+-- ============================================================
+
+-- v3.0 → v3.1: users 表新增教师信息字段
+-- ALTER TABLE `users`
+--     ADD COLUMN IF NOT EXISTS `school_name` VARCHAR(128) NULL COMMENT '教师所属学校' AFTER `avatar_url`,
+--     ADD COLUMN IF NOT EXISTS `bio`         VARCHAR(512) NULL COMMENT '教师简介/个人介绍' AFTER `school_name`;
+
+-- v3.1 → v3.2: assignments 表新增 exam_paper_id 字段
+-- ALTER TABLE `assignments`
+--     ADD COLUMN IF NOT EXISTS `exam_paper_id` VARCHAR(36) NULL COMMENT '关联的试卷ID' AFTER `updated_at`,
+--     ADD INDEX IF NOT EXISTS `idx_assignments_exam_paper_id` (`exam_paper_id`);
+
+-- v3.1 → v3.2: exercises 表新增 batch_id 字段
+-- ALTER TABLE `exercises`
+--     ADD COLUMN IF NOT EXISTS `batch_id` VARCHAR(36) NULL COMMENT '关联批次ID' AFTER `created_at`,
+--     ADD INDEX IF NOT EXISTS `idx_exercises_batch_id` (`batch_id`);
 
 
 -- ============================================================
@@ -911,14 +880,3 @@ VALUES (
 -- 执行完毕 — 共 23 张表 + 种子数据
 -- 对应 PBI: 01, 04, 05, 06, 08, 09, 10, 11, 12 + 教师端五大功能模块
 -- ============================================================
-
-
--- ============================================================
--- 迁移脚本 (v3.0 → v3.1)：为已有数据库追加新字段
--- 如果已通过 CREATE TABLE 创建（新库），无需执行以下语句
--- ============================================================
-
--- users 表新增教师信息字段（注册流程身份选择功能）
-ALTER TABLE `users`
-    ADD COLUMN IF NOT EXISTS `school_name` VARCHAR(128) NULL COMMENT '教师所属学校' AFTER `avatar_url`,
-    ADD COLUMN IF NOT EXISTS `bio`         VARCHAR(512) NULL COMMENT '教师简介/个人介绍' AFTER `school_name`;
